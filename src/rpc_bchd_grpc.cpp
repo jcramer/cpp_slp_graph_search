@@ -66,8 +66,20 @@ namespace gs {
                 return { false, {} };
             }
 
-            // FIXME: block() probably returns base64
-            return { true, base64_decode(reply.block()) };
+            std::string s_b64 = reply.block();
+            std::string decoded(s_b64.size(),'\0');
+            std::size_t len = 0;
+            base64_decode(
+                s_b64.data(),
+                s_b64.size(),
+                const_cast<char*>(decoded.data()),
+                &len,
+                0
+            );
+            decoded.resize(len);
+            std::vector<uint8_t> block(decoded.begin(), decoded.end());
+
+            return { true, block };
         }
 
         std::pair<bool, std::uint32_t> get_best_block_height()
@@ -108,8 +120,26 @@ namespace gs {
                 return { false, {} };
             }
 
-            // FIXME: map response to std::vector from grpc list pointer
-            return { true, reply.transaction_data() };
+            auto txns = reply.transaction_data();
+            std::size_t len = 0;
+            std::vector<gs::txid> txids;
+            for (auto txn : txns) {
+                auto s_b64 = txn.transaction_hash();
+                std::string decoded(s_b64.size(),'\0');
+                std::size_t len = 0;
+                base64_decode(
+                    s_b64.data(),
+                    s_b64.size(),
+                    const_cast<char*>(decoded.data()),
+                    &len,
+                    0
+                );
+                decoded.resize(len);
+                txids[len] = decoded;
+                len++;
+            }
+
+            return { true, txids };
         }
 
         std::pair<bool, std::vector<std::uint8_t>> get_raw_transaction(
@@ -128,8 +158,20 @@ namespace gs {
                 return { false, {} };
             }
 
-            // FIXME: transaction is probably in base64 format, convert to vector<uint8>
-            return { true, base64_decode(reply.transaction()) };
+            std::string s_b64 = reply.transaction();
+            std::string decoded(s_b64.size(),'\0');
+            std::size_t len = 0;
+            base64_decode(
+                s_b64.data(),
+                s_b64.size(),
+                const_cast<char*>(decoded.data()),
+                &len,
+                0
+            );
+            decoded.resize(len);
+            std::vector<uint8_t> txn(decoded.begin(), decoded.end());
+
+            return { true, txn };
         }
 
     private:
