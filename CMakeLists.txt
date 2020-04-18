@@ -283,6 +283,7 @@ add_subdirectory(${toml11_DIR})
 set (PROTOS
     ${CMAKE_CURRENT_SOURCE_DIR}/pb/graphsearch.proto
     ${CMAKE_CURRENT_SOURCE_DIR}/pb/utxo.proto
+    ${CMAKE_CURRENT_SOURCE_DIR}/pb/bchrpc.proto
 )
 
 set(PROTO_SRC_DIR ${CMAKE_CURRENT_BINARY_DIR}/proto-src)
