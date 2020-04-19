@@ -30,7 +30,6 @@ std::pair<bool, gs::blockhash> BchGrpcClient::get_block_hash(
 
     pb::GetBlockInfoRequest request;
     request.set_height(height);
-    std::cout << std::to_string(height) << std::endl;
 
     pb::GetBlockInfoResponse reply;
 
@@ -130,16 +129,14 @@ std::pair<bool, std::vector<gs::txid>> BchGrpcClient::get_raw_mempool()
     }
 
     auto txns = reply.transaction_data();
-    std::size_t len = 0;
-    std::vector<gs::txid> txids;
-
+    std::vector<gs::txid> ret;
     for (auto txn : txns) {
-        txids[len] = txn.transaction_hash();
-        len++;
+        gs::txid txid(txn.transaction_hash());
+        ret.push_back(txid);
     }
     std::cout << "get_raw_mempool end" << std::endl;
 
-    return { true, txids };
+    return { true, ret };
 }
 
 std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_transaction(
