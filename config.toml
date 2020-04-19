@@ -6,11 +6,16 @@ host = "0.0.0.0"
 port = 50051
 
 [bitcoind]
-host = "0.0.0.0"
+host = "192.168.0.7"
 port = 8332
-user = "user"
+user = "bitcoin"
 pass = "password"
 zmq_port = 28332
+
+[bchd]
+host = "0.0.0.0"
+port = 8335
+cert_path = ""
 
 [utxo]
 checkpoint = "./utxo-checkpoints/QmXkBQJrMKkCKNbwv4m5xtnqwU9Sq7kucPigvZW8mWxcrv"

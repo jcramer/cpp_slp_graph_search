@@ -9,8 +9,8 @@
 #include <gs++/util.hpp>
 #include <gs++/bhash.hpp>
 #include <gs++/rpc.hpp>
+#include <gs++/rpc_bchd_grpc.hpp>
 #include <libbase64.h>
-
 
 #include <grpc++/grpc++.h>
 #include <bchrpc.grpc.pb.h>
@@ -18,7 +18,8 @@
 
 namespace gs {
 
-    class BchGrpcClient {
+    class BchGrpcClient
+    {
 
     public:
         BchGrpcClient(std::shared_ptr<grpc::Channel> channel)
@@ -98,11 +99,12 @@ namespace gs {
             return { true, reply.best_height() };
         }
 
+        // FIXME:  bchd has no such method, we would need to manually map 
+        //          fields from RawTransactoinResponse to json object
         // std::pair<bool, nlohmann::json> get_decode_raw_transaction(
         // const std::string& hex_str
         // ) {
-        //     // FIXME:  bchd has no such method, we would need to manually map 
-        //     //          fields from RawTransactoinResponse to json object
+        // ... 
         // }
 
         std::pair<bool, std::vector<gs::txid>> get_raw_mempool()

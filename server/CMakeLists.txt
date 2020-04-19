@@ -6,6 +6,7 @@ add_executable(gs++
     ${CMAKE_SOURCE_DIR}/src/bch.cpp
     ${CMAKE_SOURCE_DIR}/src/utxodb.cpp
     ${CMAKE_SOURCE_DIR}/src/rpc.cpp
+    ${CMAKE_SOURCE_DIR}/src/rpc_bchd_grpc.cpp
     ${CMAKE_SOURCE_DIR}/src/util.cpp
     ${CMAKE_SOURCE_DIR}/src/transaction.cpp
     ${CMAKE_SOURCE_DIR}/src/slp_transaction.cpp

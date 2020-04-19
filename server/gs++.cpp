@@ -27,6 +27,7 @@
 #include <gs++/bhash.hpp>
 #include <gs++/txgraph.hpp>
 #include <gs++/rpc.hpp>
+#include <gs++/rpc_bchd_grpc.hpp>
 #include <gs++/bch.hpp>
 #include <gs++/graph_node.hpp>
 #include <gs++/transaction.hpp>
@@ -569,11 +570,33 @@ int main(int argc, char * argv[])
         toml::find<std::string>  (config, "bitcoind", "pass")
     );
 
+    grpc::ChannelArguments ch_args;
+    ch_args.SetMaxReceiveMessageSize(-1);
+
+    // grpc::SslCredentialsOptions cred_opts;
+    // cred_opts.pem_cert_chain = "";
+    // const auto channel_creds = grpc::SslCredentials(cred_opts);
+
+    grpc::SslCredentialsOptions cred_opts;
+    cred_opts.pem_cert_chain = "";
+    const auto channel_creds = grpc::InsecureChannelCredentials(); //grpc::SslCredentials(grpc::SslCredentialsOptions());  //cred_opts);
+
+    const auto channel = grpc::CreateCustomChannel(
+        toml::find<std::string> (config, "bchd", "host") +
+        ":" + 
+        toml::find<std::string> (config, "bchd", "port"),
+        channel_creds,
+        ch_args
+    );
+
+    gs::BchGrpcClient rpc_bchd_grpc(channel);
+
     if (toml::find<bool>(config, "services", "utxosync")) {
         if (toml::find<bool>(config, "utxo", "checkpoint_load")) {
         }
 
-        const std::pair<bool, std::uint32_t> best_block_height = rpc.get_best_block_height();
+        //const std::pair<bool, std::uint32_t> best_block_height = rpc.get_best_block_height();
+        const std::pair<bool, std::uint32_t> best_block_height = rpc_bchd_grpc.get_best_block_height();
         if (! best_block_height.first) {
             spdlog::error("could not connect to rpc");
             return EXIT_FAILURE;
@@ -585,7 +608,8 @@ int main(int argc, char * argv[])
             block_height <= best_block_height.second;
             ++block_height
         ) {
-            const std::pair<bool, gs::blockhash> block_hash = rpc.get_block_hash(block_height);
+            //const std::pair<bool, gs::blockhash> block_hash = rpc.get_block_hash(block_height);
+            const std::pair<bool, gs::blockhash> block_hash = rpc_bchd_grpc.get_block_hash(block_height);
             if (! block_hash.first) {
                 spdlog::warn("rpc request failed, trying again...");
                 std::this_thread::sleep_for(await_time);
@@ -593,7 +617,8 @@ int main(int argc, char * argv[])
                 continue;
             }
 
-            const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc.get_raw_block(block_hash.second);
+            //const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc.get_raw_block(block_hash.second);
+            const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc_bchd_grpc.get_raw_block(block_hash.second);
             if (! block_data.first) {
                 spdlog::warn("rpc request failed, trying again...");
                 std::this_thread::sleep_for(await_time);
@@ -642,7 +667,8 @@ int main(int argc, char * argv[])
         if (toml::find<bool>(config, "services", "graphsearch_rpc")) {
             while (! exit_early) {
     retry_loop2:
-                const std::pair<bool, std::uint32_t> best_block_height = rpc.get_best_block_height();
+                //const std::pair<bool, std::uint32_t> best_block_height = rpc.get_best_block_height();
+                const std::pair<bool, std::uint32_t> best_block_height = rpc_bchd_grpc.get_best_block_height();
                 if (! best_block_height.first) {
                     spdlog::error("could not connect to rpc");
                     return EXIT_FAILURE;
@@ -658,7 +684,8 @@ int main(int argc, char * argv[])
                     ! exit_early && current_block_height <= best_block_height.second;
                     ++current_block_height
                 ) {
-                    const std::pair<bool, gs::blockhash> block_hash = rpc.get_block_hash(current_block_height);
+                    //const std::pair<bool, gs::blockhash> block_hash = rpc.get_block_hash(current_block_height);
+                    const std::pair<bool, gs::blockhash> block_hash = rpc_bchd_grpc.get_block_hash(current_block_height);
                     if (! block_hash.first) {
                         spdlog::warn("rpc request failed, trying again...");
                         std::this_thread::sleep_for(await_time);
@@ -666,7 +693,8 @@ int main(int argc, char * argv[])
                         goto retry_loop2;
                     }
 
-                    const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc.get_raw_block(block_hash.second);
+                    //const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc.get_raw_block(block_hash.second);
+                    const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc_bchd_grpc.get_raw_block(block_hash.second);
                     if (! block_data.first) {
                         spdlog::warn("rpc request failed, trying again...");
                         std::this_thread::sleep_for(await_time);
@@ -833,7 +861,8 @@ int main(int argc, char * argv[])
 retry_loop1:
             if (exit_early) break;
 
-            const std::pair<bool, std::vector<gs::txid>> txids = rpc.get_raw_mempool();
+            //const std::pair<bool, std::vector<gs::txid>> txids = rpc.get_raw_mempool();
+            const std::pair<bool, std::vector<gs::txid>> txids = rpc_bchd_grpc.get_raw_mempool();
             if (! txids.first) {
                 spdlog::warn("get_raw_mempool failed");
                 std::this_thread::sleep_for(await_time);
@@ -841,7 +870,8 @@ retry_loop1:
             }
 
             for (const gs::txid & txid : txids.second) {
-                const std::pair<bool, std::vector<std::uint8_t>> txdata = rpc.get_raw_transaction(txid);
+                //const std::pair<bool, std::vector<std::uint8_t>> txdata = rpc.get_raw_transaction(txid);
+                const std::pair<bool, std::vector<std::uint8_t>> txdata = rpc_bchd_grpc.get_raw_transaction(txid);
 
                 if (! txdata.first) {
                     spdlog::warn("get_raw_transaction failed");
