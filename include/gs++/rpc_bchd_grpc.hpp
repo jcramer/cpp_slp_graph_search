@@ -1,4 +1,4 @@
-#ifndef GS_RPC_BCHD_HPP
+#ifndef GS_RPC_BCHD_GRPC_HPP
 #define GS_RPC_BCHD_GRPC_HPP
 
 #include <vector>
