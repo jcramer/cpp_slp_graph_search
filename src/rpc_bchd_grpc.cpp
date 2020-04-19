@@ -44,8 +44,22 @@ std::pair<bool, gs::blockhash> BchGrpcClient::get_block_hash(
         std::cout << "grpc client error: block_hash returned no info for ${height}" << std::endl;
         return { false, {} };
     }
+    
+    std::string s_b64 = reply.info().hash();
+    std::string decoded(s_b64.size(),'\0');
+    std::size_t len = 0;
+    base64_decode(
+        s_b64.data(),
+        s_b64.size(),
+        const_cast<char*>(decoded.data()),
+        &len,
+        0
+    );
+    decoded.resize(len);
 
-    return { true, reply.info().hash };       
+    gs::blockhash hash(decoded);
+
+    return { true, hash };       
 }
 
 std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_block(
