@@ -26,9 +26,11 @@ BchGrpcClient::BchGrpcClient(std::shared_ptr<grpc::Channel> channel)
 std::pair<bool, gs::blockhash> BchGrpcClient::get_block_hash(
     const std::size_t height
 ) {
+    std::cout << "get_block_hash start" << std::endl;
 
     pb::GetBlockInfoRequest request;
     request.set_height(height);
+    std::cout << std::to_string(height) << std::endl;
 
     pb::GetBlockInfoResponse reply;
 
@@ -45,58 +47,49 @@ std::pair<bool, gs::blockhash> BchGrpcClient::get_block_hash(
         return { false, {} };
     }
     
-    std::string s_b64 = reply.info().hash();
-    std::string decoded(s_b64.size(),'\0');
-    std::size_t len = 0;
-    base64_decode(
-        s_b64.data(),
-        s_b64.size(),
-        const_cast<char*>(decoded.data()),
-        &len,
-        0
-    );
-    decoded.resize(len);
-
-    gs::blockhash hash(decoded);
-
+    std::string s = reply.info().hash();
+    gs::blockhash hash(s);
+    
+    std::cout << "get_block_hash end" << std::endl;
     return { true, hash };       
 }
 
 std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_block(
     const gs::blockhash& block_hash
 ) {
+    std::cout << "get_raw_block start" << std::endl;
+
     pb::GetRawBlockRequest request;
-    request.set_hash(block_hash.decompress(false));
-
+    
+    std::string s = std::string(block_hash.v.begin(), block_hash.v.end());
+    
+    request.set_allocated_hash(&s);
+    
     pb::GetRawBlockResponse reply;
-
+    
     grpc::ClientContext context;
+    
     grpc::Status status = stub_->GetRawBlock(&context, request, &reply);
-
+    
     if (! status.ok()) {
         std::cout << status.error_code() << ": " << status.error_message() << std::endl;
         return { false, {} };
     }
 
-    std::string s_b64 = reply.block();
-    std::string decoded(s_b64.size(),'\0');
-    std::size_t len = 0;
-    base64_decode(
-        s_b64.data(),
-        s_b64.size(),
-        const_cast<char*>(decoded.data()),
-        &len,
-        0
-    );
-    decoded.resize(len);
-    std::vector<uint8_t> block(decoded.begin(), decoded.end());
+    std::string n = reply.block();
 
+    std::vector<uint8_t> block(n.begin(), n.end());
+    
+    std::cout << "get_raw_block end" << std::endl;
     return { true, block };
 }
 
 std::pair<bool, std::uint32_t> BchGrpcClient::get_best_block_height()
 {
+    std::cout << "get_best_block_height start" << std::endl;
+
     pb::GetBlockchainInfoRequest request;
+
     pb::GetBlockchainInfoResponse reply;
 
     grpc::ClientContext context;
@@ -107,6 +100,7 @@ std::pair<bool, std::uint32_t> BchGrpcClient::get_best_block_height()
         return { false, {} };
     }
 
+    std::cout << "get_best_block_height end" << std::endl;
     return { true, reply.best_height() };
 }
 
@@ -120,6 +114,8 @@ std::pair<bool, std::uint32_t> BchGrpcClient::get_best_block_height()
 
 std::pair<bool, std::vector<gs::txid>> BchGrpcClient::get_raw_mempool()
 {
+    std::cout << "get_raw_mempool start" << std::endl;
+
     pb::GetMempoolRequest request;
     request.set_full_transactions(false);
 
@@ -136,21 +132,12 @@ std::pair<bool, std::vector<gs::txid>> BchGrpcClient::get_raw_mempool()
     auto txns = reply.transaction_data();
     std::size_t len = 0;
     std::vector<gs::txid> txids;
+
     for (auto txn : txns) {
-        auto s_b64 = txn.transaction_hash();
-        std::string decoded(s_b64.size(),'\0');
-        std::size_t len = 0;
-        base64_decode(
-            s_b64.data(),
-            s_b64.size(),
-            const_cast<char*>(decoded.data()),
-            &len,
-            0
-        );
-        decoded.resize(len);
-        txids[len] = decoded;
+        txids[len] = txn.transaction_hash();
         len++;
     }
+    std::cout << "get_raw_mempool end" << std::endl;
 
     return { true, txids };
 }
@@ -158,12 +145,16 @@ std::pair<bool, std::vector<gs::txid>> BchGrpcClient::get_raw_mempool()
 std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_transaction(
     const gs::txid& txid
 ) {
+    std::cout << "get_raw_transaction start" << std::endl;
+
     pb::GetRawTransactionRequest request;
-    request.set_hash(txid.decompress(false));
+    std::string s = std::string(txid.v.begin(), txid.v.end());
+    request.set_allocated_hash(&s);
 
     pb::GetRawTransactionResponse reply;
 
     grpc::ClientContext context;
+
     grpc::Status status = stub_->GetRawTransaction(&context, request, &reply);
 
     if (! status.ok()) {
@@ -171,19 +162,10 @@ std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_transaction(
         return { false, {} };
     }
 
-    std::string s_b64 = reply.transaction();
-    std::string decoded(s_b64.size(),'\0');
-    std::size_t len = 0;
-    base64_decode(
-        s_b64.data(),
-        s_b64.size(),
-        const_cast<char*>(decoded.data()),
-        &len,
-        0
-    );
-    decoded.resize(len);
-    std::vector<uint8_t> txn(decoded.begin(), decoded.end());
+    std::string n = reply.transaction();
+    std::vector<uint8_t> txn(n.begin(), n.end());
 
+    std::cout << "get_raw_transaction end" << std::endl;
     return { true, txn };
 }
 

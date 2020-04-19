@@ -563,30 +563,43 @@ int main(int argc, char * argv[])
 
     spdlog::info("hello");
 
-    gs::rpc rpc(
-        toml::find<std::string>  (config, "bitcoind", "host"),
-        toml::find<std::uint16_t>(config, "bitcoind", "port"),
-        toml::find<std::string>  (config, "bitcoind", "user"),
-        toml::find<std::string>  (config, "bitcoind", "pass")
-    );
+    // gs::rpc rpc(
+    //     toml::find<std::string>  (config, "bitcoind", "host"),
+    //     toml::find<std::uint16_t>(config, "bitcoind", "port"),
+    //     toml::find<std::string>  (config, "bitcoind", "user"),
+    //     toml::find<std::string>  (config, "bitcoind", "pass")
+    // );
 
+    std::shared_ptr<grpc_impl::ChannelCredentials> channel_creds;
+
+    std::string cert_path;
+    try
+    {
+        cert_path = toml::find<std::string>(config, "bchd", "root_cert_path");
+    }
+    catch(const std::exception& e)
+    {}
+    
+
+    if (cert_path.size() > 0) {
+        std::ifstream cert_file;
+        cert_file.open(cert_path);
+        std::string cert((std::istreambuf_iterator<char>(cert_file)),
+                        std::istreambuf_iterator<char>());
+        
+        grpc::SslCredentialsOptions cred_opts;
+        cred_opts.pem_root_certs = cert;
+        channel_creds = grpc::SslCredentials(cred_opts);
+    } else {
+        channel_creds = grpc::InsecureChannelCredentials();
+    }
+
+    std::string addr = toml::find<std::string> (config, "bchd", "host");
+    std::string port = std::to_string(toml::find<std::uint16_t> (config, "bchd", "port"));
     grpc::ChannelArguments ch_args;
     ch_args.SetMaxReceiveMessageSize(-1);
-
-    // grpc::SslCredentialsOptions cred_opts;
-    // cred_opts.pem_cert_chain = "";
-    // const auto channel_creds = grpc::SslCredentials(cred_opts);
-
-    grpc::SslCredentialsOptions cred_opts;
-    cred_opts.pem_cert_chain = "";
-    const auto channel_creds = grpc::InsecureChannelCredentials(); //grpc::SslCredentials(grpc::SslCredentialsOptions());  //cred_opts);
-
     const auto channel = grpc::CreateCustomChannel(
-        toml::find<std::string> (config, "bchd", "host") +
-        ":" + 
-        toml::find<std::string> (config, "bchd", "port"),
-        channel_creds,
-        ch_args
+        addr + ":" + port, channel_creds, ch_args
     );
 
     gs::BchGrpcClient rpc_bchd_grpc(channel);
