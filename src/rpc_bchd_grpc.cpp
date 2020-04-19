@@ -166,5 +166,46 @@ std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_transaction(
     return { true, txn };
 }
 
+int BchGrpcClient::subscribe_raw_transactions() {
+
+    grpc::ClientContext context;
+
+    pb::SubscribeTransactionsRequest request;
+    request.set_serialize_tx(true);
+    request.set_include_in_block(true);
+    request.set_include_mempool(true);
+
+    pb::TransactionFilter filter;
+    filter.set_all_transactions(true);
+    request.set_allocated_subscribe(&filter);
+
+    std::unique_ptr<grpc::ClientReader<pb::TransactionNotification>> reader(
+        stub_->SubscribeTransactions(&context, request)
+    );
+
+    pb::TransactionNotification notification;
+    while (reader->Read(&notification)) {
+        std::cout << "Transaction received." << std::endl;
+    }
+    grpc::Status status = reader->Finish();
+}
+
+int BchGrpcClient::subscribe_raw_blocks() {
+    
+        grpc::ClientContext context;
+
+        pb::SubscribeBlocksRequest request;
+        request.set_full_block(true);
+        request.set_serialize_block(true);
+
+        std::unique_ptr<grpc::ClientReader<pb::BlockNotification>> reader(
+            stub_->SubscribeBlocks(&context, request)
+        );
+        pb::BlockNotification notification;
+        while (reader->Read(&notification)) {
+            std::cout << "Block received. " << std::endl;
+        }
+        grpc::Status status = reader->Finish();
+}
 
 }

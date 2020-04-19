@@ -28,6 +28,9 @@ public:
     std::pair<bool, std::vector<std::uint8_t>> get_raw_transaction(const gs::txid& txid);    
     //std::pair<bool, nlohmann::json> get_decode_raw_transaction(const std::string& hex_str);
 
+    int subscribe_raw_transactions(); // how to specifiy lambda parameter?
+    int subscribe_raw_blocks();       // how to specifiy lambda parameter?
+
 private:
     std::unique_ptr<pb::bchrpc::Stub> stub_;
 };

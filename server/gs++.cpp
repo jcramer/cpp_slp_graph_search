@@ -744,6 +744,19 @@ int main(int argc, char * argv[])
         }
     }
 
+
+    std::thread bchd_txn_listener([&] {
+        rpc_bchd_grpc.subscribe_raw_transactions([&] {
+           // lambda here to handle txn notifications similar to zmq below
+        });
+    });
+
+    std::thread bchd_block_listener([&] {
+        rpc_bchd_grpc.subscribe_raw_blocks([&] {
+            // lambda here to handle block notifications similar to zmq below
+        });
+    });
+
     std::thread zmq_listener([&] {
         if (! toml::find<bool>(config, "services", "zmq")) {
             return;
@@ -941,6 +954,8 @@ retry_loop1:
     }
 
     zmq_listener.join();
+    bchd_txn_listener.join();
+    bchd_block_listener.join();
 
     spdlog::info("goodbye");
 
