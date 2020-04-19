@@ -63,7 +63,7 @@ std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_block(
     
     std::string s = std::string(block_hash.v.begin(), block_hash.v.end());
     
-    request.set_allocated_hash(&s);
+    request.set_hash(s);
     
     pb::GetRawBlockResponse reply;
     
@@ -149,7 +149,7 @@ std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_transaction(
 
     pb::GetRawTransactionRequest request;
     std::string s = std::string(txid.v.begin(), txid.v.end());
-    request.set_allocated_hash(&s);
+    request.set_hash(s);
 
     pb::GetRawTransactionResponse reply;
 

@@ -714,7 +714,6 @@ int main(int argc, char * argv[])
                         --current_block_height;
                         goto retry_loop2;
                     }
-
                     gs::block block;
                     if (! block.hydrate(block_data.second.begin(), block_data.second.end(), true)) {
                         spdlog::error("failed to hydrate rpc block {}", current_block_height);
