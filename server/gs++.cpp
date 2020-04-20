@@ -73,8 +73,6 @@ gs::slp_validator validator;
 gs::txgraph g;
 gs::bch bch;
 
-bool is_json_rpc = true;
-
 const std::chrono::milliseconds await_time { 1000 };
 
 std::uint64_t current_time()
@@ -460,7 +458,7 @@ bool slpsync_process_block(const gs::block& block, const bool mempool)
             continue;
         }
         if (! validator.add_tx(tx)) {
-            std::cerr << "invalid tx: " << tx.txid.decompress(is_json_rpc) << std::endl;
+            std::cerr << "invalid tx: " << tx.txid.decompress(true) << std::endl;
             continue;
         }
 
@@ -488,7 +486,7 @@ bool slpsync_process_tx(const gs::transaction& tx)
 {
     boost::lock_guard<boost::shared_mutex> lock(processing_mutex);
 
-    spdlog::info("tx {}", tx.txid.decompress(is_json_rpc));
+    spdlog::info("new tx {}", tx.txid.decompress(true));
 
     if (tx.slp.type == gs::slp_transaction_type::invalid) {
         // spdlog::warn("zmq-tx invalid {}", tx.txid.decompress(true));
@@ -496,12 +494,12 @@ bool slpsync_process_tx(const gs::transaction& tx)
     }
 
     if (validator.has(tx.txid)) {
-        spdlog::warn("tx already in validator {}", tx.txid.decompress(is_json_rpc));
+        spdlog::warn("tx already in validator {}", tx.txid.decompress(true));
         return false;
     }
 
     if (! validator.add_tx(tx)) {
-        spdlog::warn("tx invalid tx: {}", tx.txid.decompress(is_json_rpc));
+        spdlog::warn("tx invalid tx: {}", tx.txid.decompress(true));
         return false;
     }
 
@@ -532,13 +530,15 @@ bool cache_slp_block(const gs::block& block, const std::uint32_t height)
     return true;
 }
 
-void set_rpc_type(toml::value config) {
+bool get_rpc_type(toml::value config) {
     try
     {
-        is_json_rpc = !toml::find<bool>(config, "services", "bchd_grpc");
+        return !toml::find<bool>(config, "services", "bchd_grpc");
     }
     catch(const std::exception& e)
-    {}
+    {
+        return false;
+    }
 }
 
 std::string get_grpc_cert_path(toml::value config) {
@@ -584,7 +584,7 @@ int main(int argc, char * argv[])
         ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
     }
 
-    set_rpc_type(config);
+    bool is_json_rpc = get_rpc_type(config);
 
     spdlog::info("hello");
 
@@ -906,12 +906,14 @@ int main(int argc, char * argv[])
                 gs::transaction tx;
                 if (! tx.hydrate(txn.begin(), txn.end())) {
                     spdlog::error("zmq-tx unable to be hydrated");
+                    return;
                 }
                 last_incoming_zmq_tx      = tx.txid;
                 last_incoming_zmq_tx_unix = current_time();
 
                 if (! slpsync_process_tx(tx)) {
                     // spdlog::warn("failed to process zmq tx {}", tx.txid.decompress(true));
+                    return;
                 }
                 if (zmqpub) {
                     spdlog::info("publishing zmq tx {}", tx.txid.decompress(true));
