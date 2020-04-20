@@ -83,6 +83,23 @@ This is a small utility to debug cached blocks. Just pass the blockdata as hex a
 ./bin/blockdecoder `xxd -c10000000000 -p ../cache/slp/610/610104`
 ```
 
+## BCHD gRPC Support
+
+The gs++ server can use gRPC by setting `bchd_grpc = true` the Services section of `./config.toml`.  
+
+
+To connect to a local BCHD server you will need to utilize a self-signed certificate.  The following command can be used to create a new cert and key file:
+
+```
+openssl req -x509 -days 100000 -out localhost.crt -keyout localhost.key \
+  -newkey rsa:2048 -nodes -sha256 \
+  -subj '/CN=192.168.0.7' -extensions EXT -config <( \
+   printf "[dn]\nCN=192.168.0.7\n[req]\ndistinguished_name = dn\n[EXT] \
+   \nsubjectAltName=DNS:192.168.0.7\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth")
+```
+
+Set `root_cert_path` to the certificate's file path in the `[bchd]` section of `./config.toml`.
+
 ## unit tests
 
 We have a few unit tests, please help add to these. Many of the tests come from the [slp-unit-test-data](https://github.com/simpleledger/slp-unit-test-data) repository.
