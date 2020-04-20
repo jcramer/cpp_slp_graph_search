@@ -9,19 +9,16 @@ RpcClient::RpcClient()
 {}
 
 void RpcClient::set_json_rpc(gs::rpc & rpc) {
-    std::cout << "rpc_json init" << std::endl;
     RpcClient::rpc_json = &rpc;
     RpcClient::rpc_grpc = NULL;
 }
 
 void RpcClient::set_grpc_rpc(gs::BchdGrpcClient & rpc) {
-    std::cout << "rpc_grpc init" << std::endl;
     RpcClient::rpc_grpc = &rpc;
     RpcClient::rpc_json = NULL;
 }
 
 std::pair<bool, gs::blockhash> RpcClient::get_block_hash(const std::size_t height) {
-    std::cout << "get_block_hash start" << std::endl;
     if (RpcClient::rpc_json) {
         return RpcClient::rpc_json->get_block_hash(height);
     } else {
@@ -31,7 +28,6 @@ std::pair<bool, gs::blockhash> RpcClient::get_block_hash(const std::size_t heigh
 }
 
 std::pair<bool, std::vector<std::uint8_t>> RpcClient::get_raw_block(const gs::blockhash& block_hash) {
-    std::cout << "get_raw_block start" << std::endl;
     if (RpcClient::rpc_json) {
         return RpcClient::rpc_json->get_raw_block(block_hash);
     } else {
@@ -41,7 +37,6 @@ std::pair<bool, std::vector<std::uint8_t>> RpcClient::get_raw_block(const gs::bl
 
 
 std::pair<bool, std::uint32_t> RpcClient::get_best_block_height() {
-    std::cout << "get_best_block_height start" << std::endl;
     if (RpcClient::rpc_json) {
         return RpcClient::rpc_json->get_best_block_height();
     } else {
@@ -51,7 +46,6 @@ std::pair<bool, std::uint32_t> RpcClient::get_best_block_height() {
 }
 
 std::pair<bool, std::vector<gs::txid>> RpcClient::get_raw_mempool() {
-    std::cout << "get_raw_mempool start" << std::endl;
     if (RpcClient::rpc_json) {
         return RpcClient::rpc_json->get_raw_mempool();
     } else {
@@ -60,7 +54,6 @@ std::pair<bool, std::vector<gs::txid>> RpcClient::get_raw_mempool() {
 }
 
 std::pair<bool, std::vector<std::uint8_t>> RpcClient::get_raw_transaction(const gs::txid& txid) {
-    std::cout << "get_raw_transaction start" << std::endl;
     if (RpcClient::rpc_json) {
         return RpcClient::rpc_json->get_raw_transaction(txid);
     } else {
@@ -69,12 +62,10 @@ std::pair<bool, std::vector<std::uint8_t>> RpcClient::get_raw_transaction(const 
 }   
 
 int RpcClient::subscribe_raw_transactions(std::function<void (std::string txn)> callback) {
-    std::cout << "subscribe_raw_transactions" << std::endl;
     return RpcClient::rpc_grpc->subscribe_raw_transactions(callback);
 }
 
 int RpcClient::subscribe_raw_blocks(std::function<void (std::string block)> callback) {
-    std::cout << "subscribe_raw_blocks" << std::endl;
     return RpcClient::rpc_grpc->subscribe_raw_blocks(callback);
 }
 

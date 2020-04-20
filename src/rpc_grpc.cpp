@@ -26,7 +26,6 @@ BchdGrpcClient::BchdGrpcClient(std::shared_ptr<grpc::Channel> channel)
 std::pair<bool, gs::blockhash> BchdGrpcClient::get_block_hash(
     const std::size_t height
 ) {
-    std::cout << "get_block_hash start2" << std::endl;
 
     pb::GetBlockInfoRequest request;
     request.set_height(height);
@@ -49,14 +48,12 @@ std::pair<bool, gs::blockhash> BchdGrpcClient::get_block_hash(
     std::string s = reply.info().hash();
     gs::blockhash hash(s);
     
-    std::cout << "get_block_hash end" << std::endl;
     return { true, hash };       
 }
 
 std::pair<bool, std::vector<std::uint8_t>> BchdGrpcClient::get_raw_block(
     const gs::blockhash& block_hash
 ) {
-    std::cout << "get_raw_block start2" << std::endl;
 
     pb::GetRawBlockRequest request;
     
@@ -79,13 +76,11 @@ std::pair<bool, std::vector<std::uint8_t>> BchdGrpcClient::get_raw_block(
 
     std::vector<uint8_t> block(n.begin(), n.end());
     
-    std::cout << "get_raw_block end" << std::endl;
     return { true, block };
 }
 
 std::pair<bool, std::uint32_t> BchdGrpcClient::get_best_block_height()
 {
-    std::cout << "get_best_block_height start2" << std::endl;
 
     pb::GetBlockchainInfoRequest request;
 
@@ -99,21 +94,19 @@ std::pair<bool, std::uint32_t> BchdGrpcClient::get_best_block_height()
         return { false, {} };
     }
 
-    std::cout << "get_best_block_height end" << std::endl;
     return { true, reply.best_height() };
 }
 
-// FIXME:  bchd has no such method, we would need to manually map 
-//          fields from RawTransactoinResponse to json object
+
 // std::pair<bool, nlohmann::json> get_decode_raw_transaction(
 // const std::string& hex_str
 // ) {
-// ... 
+//      FIXME:  bchd has no such method, we would need to manually map 
+//              fields from RawTransactoinResponse to json object
 // }
 
 std::pair<bool, std::vector<gs::txid>> BchdGrpcClient::get_raw_mempool()
 {
-    std::cout << "get_raw_mempool start2" << std::endl;
 
     pb::GetMempoolRequest request;
     request.set_full_transactions(false);
@@ -134,7 +127,6 @@ std::pair<bool, std::vector<gs::txid>> BchdGrpcClient::get_raw_mempool()
         gs::txid txid(txn.transaction_hash());
         ret.push_back(txid);
     }
-    std::cout << "get_raw_mempool end" << std::endl;
 
     return { true, ret };
 }
@@ -142,7 +134,6 @@ std::pair<bool, std::vector<gs::txid>> BchdGrpcClient::get_raw_mempool()
 std::pair<bool, std::vector<std::uint8_t>> BchdGrpcClient::get_raw_transaction(
     const gs::txid& txid
 ) {
-    std::cout << "get_raw_transaction start2" << std::endl;
 
     pb::GetRawTransactionRequest request;
     std::string s = std::string(txid.v.begin(), txid.v.end());
@@ -162,7 +153,6 @@ std::pair<bool, std::vector<std::uint8_t>> BchdGrpcClient::get_raw_transaction(
     std::string n = reply.transaction();
     std::vector<uint8_t> txn(n.begin(), n.end());
 
-    std::cout << "get_raw_transaction end" << std::endl;
     return { true, txn };
 }
 
@@ -203,7 +193,6 @@ int BchdGrpcClient::subscribe_raw_blocks(std::function<void (std::string block)>
     );
     pb::BlockNotification notification;
     while (reader->Read(&notification)) {
-        std::cout << "Block received. " << std::endl;
         callback(notification.serialized_block());
     }
     grpc::Status status = reader->Finish();

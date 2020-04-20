@@ -38,7 +38,7 @@
 #include <gs++/util.hpp>
 
 std::unique_ptr<grpc::Server> gserver;
-std::atomic<int>           current_block_height = { 630000 };//543375 };
+std::atomic<int>           current_block_height = { 543375 };
 std::atomic<gs::blockhash> current_block_hash(
     std::string("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 );
