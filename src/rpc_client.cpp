@@ -7,7 +7,7 @@ namespace gs
 
 RpcClient::RpcClient(gs::rpc & rpc) {
     std::cout << "rpc_json init" << std::endl;
-    RpcClient::rpc_json = rpc;
+    RpcClient::rpc_json = &rpc;
     RpcClient::rpc_grpc = NULL;
 }
 
