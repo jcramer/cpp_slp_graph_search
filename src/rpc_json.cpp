@@ -7,7 +7,7 @@
 #include <nlohmann/json.hpp>
 #include <gs++/util.hpp>
 #include <gs++/bhash.hpp>
-#include <gs++/rpc.hpp>
+#include <gs++/rpc_json.hpp>
 
 namespace gs {
 

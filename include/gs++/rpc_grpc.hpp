@@ -1,5 +1,5 @@
-#ifndef GS_RPC_BCHD_GRPC_HPP
-#define GS_RPC_BCHD_GRPC_HPP
+#ifndef GS_RPC_GRPC_HPP
+#define GS_RPC_GRPC_HPP
 
 #include <vector>
 #include <string>
@@ -26,10 +26,8 @@ public:
     std::pair<bool, std::uint32_t> get_best_block_height();
     std::pair<bool, std::vector<gs::txid>> get_raw_mempool();
     std::pair<bool, std::vector<std::uint8_t>> get_raw_transaction(const gs::txid& txid);    
-    //std::pair<bool, nlohmann::json> get_decode_raw_transaction(const std::string& hex_str);
-
-    int subscribe_raw_transactions(); // how to specifiy lambda parameter?
-    int subscribe_raw_blocks();       // how to specifiy lambda parameter?
+    int subscribe_raw_transactions(std::function<void (std::string txn)> callback);
+    int subscribe_raw_blocks(std::function<void (std::string block)> callback);
 
 private:
     std::unique_ptr<pb::bchrpc::Stub> stub_;

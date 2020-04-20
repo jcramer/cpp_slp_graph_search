@@ -34,7 +34,8 @@ private_key = "0000000000000000000000000000000000000000000000000000000000000000"
 [services]
 graphsearch = true
 graphsearch_rpc = true
-zmq = true
+bitcoind_zmq = true
+bchd_grpc = true
 grpc = true
 utxosync = false
 cache = true

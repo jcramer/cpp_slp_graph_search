@@ -9,7 +9,7 @@
 #include <absl/container/node_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <gs++/output.hpp>
-#include <gs++/rpc.hpp>
+#include <gs++/rpc_json.hpp>
 #include <gs++/scriptpubkey.hpp>
 
 namespace gs {

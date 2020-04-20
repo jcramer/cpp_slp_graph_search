@@ -13,7 +13,7 @@
 #include <absl/strings/numbers.h>
 #include <absl/numeric/int128.h>
 
-#include <gs++/rpc.hpp>
+#include <gs++/rpc_json.hpp>
 #include <gs++/slp_validator.hpp>
 #include <gs++/transaction.hpp>
 

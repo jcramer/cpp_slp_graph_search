@@ -8,8 +8,8 @@
 #include <nlohmann/json.hpp>
 #include <gs++/util.hpp>
 #include <gs++/bhash.hpp>
-#include <gs++/rpc.hpp>
-#include <gs++/rpc_bchd_grpc.hpp>
+#include <gs++/rpc_json.hpp>
+#include <gs++/rpc_grpc.hpp>
 #include <libbase64.h>
 
 #include <grpc++/grpc++.h>
@@ -26,7 +26,7 @@ BchGrpcClient::BchGrpcClient(std::shared_ptr<grpc::Channel> channel)
 std::pair<bool, gs::blockhash> BchGrpcClient::get_block_hash(
     const std::size_t height
 ) {
-    std::cout << "get_block_hash start" << std::endl;
+    std::cout << "get_block_hash start2" << std::endl;
 
     pb::GetBlockInfoRequest request;
     request.set_height(height);
@@ -56,7 +56,7 @@ std::pair<bool, gs::blockhash> BchGrpcClient::get_block_hash(
 std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_block(
     const gs::blockhash& block_hash
 ) {
-    std::cout << "get_raw_block start" << std::endl;
+    std::cout << "get_raw_block start2" << std::endl;
 
     pb::GetRawBlockRequest request;
     
@@ -85,7 +85,7 @@ std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_block(
 
 std::pair<bool, std::uint32_t> BchGrpcClient::get_best_block_height()
 {
-    std::cout << "get_best_block_height start" << std::endl;
+    std::cout << "get_best_block_height start2" << std::endl;
 
     pb::GetBlockchainInfoRequest request;
 
@@ -113,7 +113,7 @@ std::pair<bool, std::uint32_t> BchGrpcClient::get_best_block_height()
 
 std::pair<bool, std::vector<gs::txid>> BchGrpcClient::get_raw_mempool()
 {
-    std::cout << "get_raw_mempool start" << std::endl;
+    std::cout << "get_raw_mempool start2" << std::endl;
 
     pb::GetMempoolRequest request;
     request.set_full_transactions(false);
@@ -142,7 +142,7 @@ std::pair<bool, std::vector<gs::txid>> BchGrpcClient::get_raw_mempool()
 std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_transaction(
     const gs::txid& txid
 ) {
-    std::cout << "get_raw_transaction start" << std::endl;
+    std::cout << "get_raw_transaction start2" << std::endl;
 
     pb::GetRawTransactionRequest request;
     std::string s = std::string(txid.v.begin(), txid.v.end());
@@ -166,13 +166,13 @@ std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_transaction(
     return { true, txn };
 }
 
-int BchGrpcClient::subscribe_raw_transactions() {
+int BchGrpcClient::subscribe_raw_transactions(std::function<void (std::string txn)> callback) {
 
     grpc::ClientContext context;
 
     pb::SubscribeTransactionsRequest request;
     request.set_serialize_tx(true);
-    request.set_include_in_block(true);
+    request.set_include_in_block(false);
     request.set_include_mempool(true);
 
     pb::TransactionFilter filter;
@@ -185,27 +185,28 @@ int BchGrpcClient::subscribe_raw_transactions() {
 
     pb::TransactionNotification notification;
     while (reader->Read(&notification)) {
-        std::cout << "Transaction received." << std::endl;
+        callback(notification.serialized_transaction());
     }
     grpc::Status status = reader->Finish();
 }
 
-int BchGrpcClient::subscribe_raw_blocks() {
+int BchGrpcClient::subscribe_raw_blocks(std::function<void (std::string block)> callback) {
     
-        grpc::ClientContext context;
+    grpc::ClientContext context;
 
-        pb::SubscribeBlocksRequest request;
-        request.set_full_block(true);
-        request.set_serialize_block(true);
+    pb::SubscribeBlocksRequest request;
+    request.set_full_block(true);
+    request.set_serialize_block(true);
 
-        std::unique_ptr<grpc::ClientReader<pb::BlockNotification>> reader(
-            stub_->SubscribeBlocks(&context, request)
-        );
-        pb::BlockNotification notification;
-        while (reader->Read(&notification)) {
-            std::cout << "Block received. " << std::endl;
-        }
-        grpc::Status status = reader->Finish();
+    std::unique_ptr<grpc::ClientReader<pb::BlockNotification>> reader(
+        stub_->SubscribeBlocks(&context, request)
+    );
+    pb::BlockNotification notification;
+    while (reader->Read(&notification)) {
+        std::cout << "Block received. " << std::endl;
+        callback(notification.serialized_block());
+    }
+    grpc::Status status = reader->Finish();
 }
 
 }
