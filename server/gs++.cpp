@@ -532,6 +532,26 @@ bool cache_slp_block(const gs::block& block, const std::uint32_t height)
     return true;
 }
 
+void set_rpc_type(toml::value config) {
+    try
+    {
+        is_json_rpc = !toml::find<bool>(config, "services", "bchd_grpc");
+    }
+    catch(const std::exception& e)
+    {}
+}
+
+std::string get_grpc_cert_path(toml::value config) {
+    try
+    {
+        return toml::find<std::string>(config, "bchd", "root_cert_path");
+    }
+    catch(const std::exception& e)
+    {
+        return "";
+    }
+}
+
 int main(int argc, char * argv[])
 {
     // std::signal(SIGINT, signal_handler);
@@ -564,63 +584,53 @@ int main(int argc, char * argv[])
         ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
     }
 
-    try
-    {
-        is_json_rpc = !toml::find<bool>(config, "services", "bchd_grpc");
-    }
-    catch(const std::exception& e)
-    {}
+    set_rpc_type(config);
 
     spdlog::info("hello");
 
-    std::shared_ptr<grpc_impl::Channel> channel;
     gs::RpcClient rpc_client = gs::RpcClient();
 
-    // if (is_json_rpc) {
-    //     std::cout << "is_json_rpc" << std::endl;
-    //     gs::rpc _rpc(
-    //         toml::find<std::string>  (config, "bitcoind", "host"),
-    //         toml::find<std::uint16_t>(config, "bitcoind", "port"),
-    //         toml::find<std::string>  (config, "bitcoind", "user"),
-    //         toml::find<std::string>  (config, "bitcoind", "pass")
-    //     );
-    //     rpc_client.set_json_rpc(_rpc);
-    // } else {
-        std::cout << "not_json_rpc" << std::endl;
-        std::shared_ptr<grpc_impl::ChannelCredentials> channel_creds;
+    if (is_json_rpc) {
+        gs::rpc* _rpc = new gs::rpc(
+            toml::find<std::string>  (config, "bitcoind", "host"),
+            toml::find<std::uint16_t>(config, "bitcoind", "port"),
+            toml::find<std::string>  (config, "bitcoind", "user"),
+            toml::find<std::string>  (config, "bitcoind", "pass")
+        );
+        rpc_client.set_json_rpc(*_rpc);
+    } else {
+        std::shared_ptr<grpc_impl::Channel> channel(nullptr);
+        std::shared_ptr<grpc_impl::ChannelCredentials> channel_creds(nullptr);
+        std::string grpc_target;
+        grpc_impl::SslCredentialsOptions* cred_opts = new grpc_impl::SslCredentialsOptions();
+        grpc_impl::ChannelArguments* ch_args = new grpc_impl::ChannelArguments();
 
-        std::string cert_path;
-        try
-        {
-            cert_path = toml::find<std::string>(config, "bchd", "root_cert_path");
-        }
-        catch(const std::exception& e)
-        {}
-    
+        // set the ssl cert if provided
+        std::string cert_path = get_grpc_cert_path(config);
         if (cert_path.size() > 0) {
             std::ifstream cert_file;
             cert_file.open(cert_path);
             std::string cert((std::istreambuf_iterator<char>(cert_file)),
-                            std::istreambuf_iterator<char>());
-            
-            grpc::SslCredentialsOptions cred_opts;
-            cred_opts.pem_root_certs = cert;
-            channel_creds = grpc::SslCredentials(cred_opts);
+                              std::istreambuf_iterator<char>());
+            cred_opts->pem_root_certs = cert;
+            channel_creds = grpc::SslCredentials(*cred_opts);
         } else {
             channel_creds = grpc::InsecureChannelCredentials();
         }
 
-        std::string addr = toml::find<std::string> (config, "bchd", "host");
-        std::string port = std::to_string(toml::find<std::uint16_t> (config, "bchd", "port"));
-        grpc::ChannelArguments ch_args;
-        ch_args.SetMaxReceiveMessageSize(-1);
+        // create server channel
+        grpc_target = toml::find<std::string> (config, "bchd", "host") +
+                      ":" + 
+                      std::to_string(toml::find<std::uint16_t> (config, "bchd", "port"));
+        ch_args->SetMaxReceiveMessageSize(-1);
         channel = grpc::CreateCustomChannel(
-            addr + ":" + port, channel_creds, ch_args
+            grpc_target, channel_creds, *ch_args
         );
 
-        gs::BchdGrpcClient _rpc(channel);
-        rpc_client.set_grpc_rpc(_rpc);
-    //}
+        // set new rpc client
+        gs::BchdGrpcClient* _rpc = new gs::BchdGrpcClient(channel);
+        rpc_client.set_grpc_rpc(*_rpc);
+    }
 
     if (toml::find<bool>(config, "services", "utxosync")) {
         if (toml::find<bool>(config, "utxo", "checkpoint_load")) {
