@@ -563,22 +563,29 @@ int main(int argc, char * argv[])
 
         ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
     }
-    is_json_rpc = ! toml::find<bool>(config, "services", "bchd_grpc");
-    gs::RpcClient* rpc_client;
+
+    try
+    {
+        is_json_rpc = !toml::find<bool>(config, "services", "bchd_grpc");
+    }
+    catch(const std::exception& e)
+    {}
 
     spdlog::info("hello");
 
-    if (is_json_rpc) {
-        std::cout << "is_json_rpc" << std::endl;
-        gs::rpc _rpc(
-            toml::find<std::string>  (config, "bitcoind", "host"),
-            toml::find<std::uint16_t>(config, "bitcoind", "port"),
-            toml::find<std::string>  (config, "bitcoind", "user"),
-            toml::find<std::string>  (config, "bitcoind", "pass")
-        );
-        gs::RpcClient _client(_rpc);
-        rpc_client = &_client;
-    } else {
+    std::shared_ptr<grpc_impl::Channel> channel;
+    gs::RpcClient rpc_client = gs::RpcClient();
+
+    // if (is_json_rpc) {
+    //     std::cout << "is_json_rpc" << std::endl;
+    //     gs::rpc _rpc(
+    //         toml::find<std::string>  (config, "bitcoind", "host"),
+    //         toml::find<std::uint16_t>(config, "bitcoind", "port"),
+    //         toml::find<std::string>  (config, "bitcoind", "user"),
+    //         toml::find<std::string>  (config, "bitcoind", "pass")
+    //     );
+    //     rpc_client.set_json_rpc(_rpc);
+    // } else {
         std::cout << "not_json_rpc" << std::endl;
         std::shared_ptr<grpc_impl::ChannelCredentials> channel_creds;
 
@@ -607,20 +614,19 @@ int main(int argc, char * argv[])
         std::string port = std::to_string(toml::find<std::uint16_t> (config, "bchd", "port"));
         grpc::ChannelArguments ch_args;
         ch_args.SetMaxReceiveMessageSize(-1);
-        const auto channel = grpc::CreateCustomChannel(
+        channel = grpc::CreateCustomChannel(
             addr + ":" + port, channel_creds, ch_args
         );
 
-        gs::BchGrpcClient _rpc(channel);
-        gs::RpcClient _client(_rpc);
-        rpc_client = &_client;
-    }
+        gs::BchdGrpcClient _rpc(channel);
+        rpc_client.set_grpc_rpc(_rpc);
+    //}
 
     if (toml::find<bool>(config, "services", "utxosync")) {
         if (toml::find<bool>(config, "utxo", "checkpoint_load")) {
         }
 
-        const std::pair<bool, std::uint32_t> best_block_height = rpc_client->get_best_block_height();
+        const std::pair<bool, std::uint32_t> best_block_height = rpc_client.get_best_block_height();
         if (! best_block_height.first) {
             spdlog::error("could not connect to rpc");
             return EXIT_FAILURE;
@@ -632,7 +638,7 @@ int main(int argc, char * argv[])
             block_height <= best_block_height.second;
             ++block_height
         ) {
-            const std::pair<bool, gs::blockhash> block_hash = rpc_client->get_block_hash(block_height);
+            const std::pair<bool, gs::blockhash> block_hash = rpc_client.get_block_hash(block_height);
             if (! block_hash.first) {
                 spdlog::warn("rpc request failed, trying again...");
                 std::this_thread::sleep_for(await_time);
@@ -640,7 +646,7 @@ int main(int argc, char * argv[])
                 continue;
             }
 
-            const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc_client->get_raw_block(block_hash.second);
+            const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc_client.get_raw_block(block_hash.second);
             if (! block_data.first) {
                 spdlog::warn("rpc request failed, trying again...");
                 std::this_thread::sleep_for(await_time);
@@ -690,7 +696,7 @@ int main(int argc, char * argv[])
             while (! exit_early) {
     retry_loop2:
                 //const std::pair<bool, std::uint32_t> best_block_height = rpc.get_best_block_height();
-                const std::pair<bool, std::uint32_t> best_block_height = rpc_client->get_best_block_height();
+                const std::pair<bool, std::uint32_t> best_block_height = rpc_client.get_best_block_height();
                 if (! best_block_height.first) {
                     spdlog::error("could not connect to rpc");
                     return EXIT_FAILURE;
@@ -707,7 +713,7 @@ int main(int argc, char * argv[])
                     ++current_block_height
                 ) {
                     //const std::pair<bool, gs::blockhash> block_hash = rpc.get_block_hash(current_block_height);
-                    const std::pair<bool, gs::blockhash> block_hash = rpc_client->get_block_hash(current_block_height);
+                    const std::pair<bool, gs::blockhash> block_hash = rpc_client.get_block_hash(current_block_height);
                     if (! block_hash.first) {
                         spdlog::warn("rpc request failed, trying again...");
                         std::this_thread::sleep_for(await_time);
@@ -716,7 +722,7 @@ int main(int argc, char * argv[])
                     }
 
                     //const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc.get_raw_block(block_hash.second);
-                    const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc_client->get_raw_block(block_hash.second);
+                    const std::pair<bool, std::vector<std::uint8_t>> block_data = rpc_client.get_raw_block(block_hash.second);
                     if (! block_data.first) {
                         spdlog::warn("rpc request failed, trying again...");
                         std::this_thread::sleep_for(await_time);
@@ -761,82 +767,8 @@ int main(int argc, char * argv[])
         pubsock.bind(toml::find<std::string>(config, "zmqpub", "bind"));
     }
 
-    std::thread bchd_txn_listener([&] {
-        rpc_client->subscribe_raw_transactions([&](std::string txn) {
-            if (startup_processing_mempool) {
-                gs::transaction tx;
-                if (tx.hydrate(txn.begin(), txn.end())) {
-                    if (tx.slp.type != gs::slp_transaction_type::invalid) {
-                        startup_mempool_transactions.push_back(tx);
-                    }
-                }
-            } else {
-                gs::transaction tx;
-                if (! tx.hydrate(txn.begin(), txn.end())) {
-                    spdlog::error("zmq-tx unable to be hydrated");
-                }
-                last_incoming_zmq_tx      = tx.txid;
-                last_incoming_zmq_tx_unix = current_time();
-
-                if (! slpsync_process_tx(tx)) {
-                    // spdlog::warn("failed to process zmq tx {}", tx.txid.decompress(true));
-                }
-                if (zmqpub) {
-                    spdlog::info("publishing zmq tx {}", tx.txid.decompress(true));
-                    std::array<zmq::const_buffer, 2> msgs = {
-                        zmq::str_buffer("rawtx"),
-                        zmq::buffer(tx.serialized.data(), tx.serialized.size())
-                    };
-                    zmq::send_multipart(pubsock, msgs, zmq::send_flags::dontwait);
-
-                    last_outgoing_zmq_tx      = tx.txid;
-                    last_outgoing_zmq_tx_unix = current_time();
-                }
-            }
-        });
-    });
-
-    std::thread bchd_block_listener([&] {
-        rpc_client->subscribe_raw_blocks([&](std::string blk) {
-            if (startup_processing_mempool) {
-                return;
-            } else {
-                gs::block block;
-                if (! block.hydrate(blk.begin(), blk.end(), true)) {
-                    spdlog::error("failed to hydrate zmq block");
-                }
-                last_incoming_zmq_blk_size = block.txs.size();
-                last_incoming_zmq_blk_unix = current_time();
-
-                block.topological_sort();
-
-                ++current_block_height;
-                if (! slpsync_process_block(block, false)) {
-                    spdlog::error("failed to process zmq block {}", current_block_height);
-                    --current_block_height;
-                }
-
-                current_block_hash = block.block_hash;
-
-                if (zmqpub) {
-                    spdlog::info("publishing zmq block {}", block.merkle_root.decompress(true));
-
-                    const std::vector<std::uint8_t> bserial = block.serialize();
-                    std::array<zmq::const_buffer, 2> msgs = {
-                        zmq::str_buffer("rawblock"),
-                        zmq::buffer(bserial.data(), bserial.size())
-                    };
-                    zmq::send_multipart(pubsock, msgs, zmq::send_flags::dontwait);
-
-                    last_outgoing_zmq_blk_size = block.txs.size();
-                    last_outgoing_zmq_blk_unix = current_time();
-                }
-            }        
-        });
-    });
-
     std::thread bitcoind_zmq_listener([&] {
-        if (! toml::find<bool>(config, "services", "bitcoind_zmq")) {
+        if (! toml::find<bool>(config, "services", "bitcoind_zmq") || !is_json_rpc) {
             return;
         }
         zmq::context_t subcontext(1);
@@ -948,6 +880,86 @@ int main(int argc, char * argv[])
         }
     });
 
+    std::thread bchd_txn_listener([&] {
+        if (is_json_rpc) {
+            return;
+        }
+        rpc_client.subscribe_raw_transactions([&](std::string txn) {
+            if (startup_processing_mempool) {
+                gs::transaction tx;
+                if (tx.hydrate(txn.begin(), txn.end())) {
+                    if (tx.slp.type != gs::slp_transaction_type::invalid) {
+                        startup_mempool_transactions.push_back(tx);
+                    }
+                }
+            } else {
+                gs::transaction tx;
+                if (! tx.hydrate(txn.begin(), txn.end())) {
+                    spdlog::error("zmq-tx unable to be hydrated");
+                }
+                last_incoming_zmq_tx      = tx.txid;
+                last_incoming_zmq_tx_unix = current_time();
+
+                if (! slpsync_process_tx(tx)) {
+                    // spdlog::warn("failed to process zmq tx {}", tx.txid.decompress(true));
+                }
+                if (zmqpub) {
+                    spdlog::info("publishing zmq tx {}", tx.txid.decompress(true));
+                    std::array<zmq::const_buffer, 2> msgs = {
+                        zmq::str_buffer("rawtx"),
+                        zmq::buffer(tx.serialized.data(), tx.serialized.size())
+                    };
+                    zmq::send_multipart(pubsock, msgs, zmq::send_flags::dontwait);
+
+                    last_outgoing_zmq_tx      = tx.txid;
+                    last_outgoing_zmq_tx_unix = current_time();
+                }
+            }
+        });
+    });
+
+    std::thread bchd_block_listener([&] {
+        if (is_json_rpc) {
+            return;
+        }
+        rpc_client.subscribe_raw_blocks([&](std::string blk) {
+            if (startup_processing_mempool) {
+                return;
+            } else {
+                gs::block block;
+                if (! block.hydrate(blk.begin(), blk.end(), true)) {
+                    spdlog::error("failed to hydrate zmq block");
+                }
+                last_incoming_zmq_blk_size = block.txs.size();
+                last_incoming_zmq_blk_unix = current_time();
+
+                block.topological_sort();
+
+                ++current_block_height;
+                if (! slpsync_process_block(block, false)) {
+                    spdlog::error("failed to process zmq block {}", current_block_height);
+                    --current_block_height;
+                }
+
+                current_block_hash = block.block_hash;
+
+                if (zmqpub) {
+                    spdlog::info("publishing zmq block {}", block.merkle_root.decompress(true));
+
+                    const std::vector<std::uint8_t> bserial = block.serialize();
+                    std::array<zmq::const_buffer, 2> msgs = {
+                        zmq::str_buffer("rawblock"),
+                        zmq::buffer(bserial.data(), bserial.size())
+                    };
+                    zmq::send_multipart(pubsock, msgs, zmq::send_flags::dontwait);
+
+                    last_outgoing_zmq_blk_size = block.txs.size();
+                    last_outgoing_zmq_blk_unix = current_time();
+                }
+            }        
+        });
+    });
+
     if (toml::find<bool>(config, "services", "graphsearch")
      && toml::find<bool>(config, "services", "graphsearch_rpc"))
     {
@@ -955,7 +967,7 @@ int main(int argc, char * argv[])
 retry_loop1:
             if (exit_early) break;
 
-            std::pair<bool, std::vector<gs::txid>> txids = rpc_client->get_raw_mempool();
+            std::pair<bool, std::vector<gs::txid>> txids = rpc_client.get_raw_mempool();
             if (! txids.first) {
                 spdlog::warn("get_raw_mempool failed");
                 std::this_thread::sleep_for(await_time);
@@ -964,7 +976,7 @@ retry_loop1:
 
             for (const gs::txid & txid : txids.second) {
                 //const std::pair<bool, std::vector<std::uint8_t>> txdata = rpc.get_raw_transaction(txid);
-                const std::pair<bool, std::vector<std::uint8_t>> txdata = rpc_client->get_raw_transaction(txid);
+                const std::pair<bool, std::vector<std::uint8_t>> txdata = rpc_client.get_raw_transaction(txid);
 
                 if (! txdata.first) {
                     spdlog::warn("get_raw_transaction failed");
@@ -1021,12 +1033,9 @@ retry_loop1:
         }
     }
 
-    if (! is_json_rpc) { 
-        bchd_txn_listener.join();
-        bchd_block_listener.join();
-    } else {
-        bitcoind_zmq_listener.join();
-    }
+    bitcoind_zmq_listener.join();
+    bchd_txn_listener.join();
+    bchd_block_listener.join();
 
     spdlog::info("goodbye");
 

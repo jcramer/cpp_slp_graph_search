@@ -5,13 +5,16 @@
 namespace gs
 {
 
-RpcClient::RpcClient(gs::rpc & rpc) {
+RpcClient::RpcClient()
+{}
+
+void RpcClient::set_json_rpc(gs::rpc & rpc) {
     std::cout << "rpc_json init" << std::endl;
     RpcClient::rpc_json = &rpc;
     RpcClient::rpc_grpc = NULL;
 }
 
-RpcClient::RpcClient(gs::BchGrpcClient & rpc) {
+void RpcClient::set_grpc_rpc(gs::BchdGrpcClient & rpc) {
     std::cout << "rpc_grpc init" << std::endl;
     RpcClient::rpc_grpc = &rpc;
     RpcClient::rpc_json = NULL;

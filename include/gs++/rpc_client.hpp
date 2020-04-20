@@ -9,8 +9,9 @@ namespace gs
 class RpcClient
 {
 public:
-    RpcClient(gs::rpc & rpc);
-    RpcClient(gs::BchGrpcClient & rpc);
+    RpcClient();
+    void set_json_rpc(gs::rpc & rpc);
+    void set_grpc_rpc(gs::BchdGrpcClient & rpc);
     std::pair<bool, gs::blockhash> get_block_hash(const std::size_t height);
     std::pair<bool, std::vector<std::uint8_t>> get_raw_block(const gs::blockhash& block_hash);
     std::pair<bool, std::uint32_t> get_best_block_height();
@@ -21,7 +22,7 @@ public:
 
 private:
     gs::rpc *rpc_json;
-    gs::BchGrpcClient *rpc_grpc;
+    gs::BchdGrpcClient *rpc_grpc;
 };
 
 }

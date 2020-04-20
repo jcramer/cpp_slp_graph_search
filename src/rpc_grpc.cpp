@@ -19,11 +19,11 @@
 namespace gs {
 
 
-BchGrpcClient::BchGrpcClient(std::shared_ptr<grpc::Channel> channel)
+BchdGrpcClient::BchdGrpcClient(std::shared_ptr<grpc::Channel> channel)
 : stub_(pb::bchrpc::NewStub(channel)) 
 {}
 
-std::pair<bool, gs::blockhash> BchGrpcClient::get_block_hash(
+std::pair<bool, gs::blockhash> BchdGrpcClient::get_block_hash(
     const std::size_t height
 ) {
     std::cout << "get_block_hash start2" << std::endl;
@@ -53,7 +53,7 @@ std::pair<bool, gs::blockhash> BchGrpcClient::get_block_hash(
     return { true, hash };       
 }
 
-std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_block(
+std::pair<bool, std::vector<std::uint8_t>> BchdGrpcClient::get_raw_block(
     const gs::blockhash& block_hash
 ) {
     std::cout << "get_raw_block start2" << std::endl;
@@ -83,7 +83,7 @@ std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_block(
     return { true, block };
 }
 
-std::pair<bool, std::uint32_t> BchGrpcClient::get_best_block_height()
+std::pair<bool, std::uint32_t> BchdGrpcClient::get_best_block_height()
 {
     std::cout << "get_best_block_height start2" << std::endl;
 
@@ -111,7 +111,7 @@ std::pair<bool, std::uint32_t> BchGrpcClient::get_best_block_height()
 // ... 
 // }
 
-std::pair<bool, std::vector<gs::txid>> BchGrpcClient::get_raw_mempool()
+std::pair<bool, std::vector<gs::txid>> BchdGrpcClient::get_raw_mempool()
 {
     std::cout << "get_raw_mempool start2" << std::endl;
 
@@ -139,7 +139,7 @@ std::pair<bool, std::vector<gs::txid>> BchGrpcClient::get_raw_mempool()
     return { true, ret };
 }
 
-std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_transaction(
+std::pair<bool, std::vector<std::uint8_t>> BchdGrpcClient::get_raw_transaction(
     const gs::txid& txid
 ) {
     std::cout << "get_raw_transaction start2" << std::endl;
@@ -166,7 +166,7 @@ std::pair<bool, std::vector<std::uint8_t>> BchGrpcClient::get_raw_transaction(
     return { true, txn };
 }
 
-int BchGrpcClient::subscribe_raw_transactions(std::function<void (std::string txn)> callback) {
+int BchdGrpcClient::subscribe_raw_transactions(std::function<void (std::string txn)> callback) {
 
     grpc::ClientContext context;
 
@@ -190,7 +190,7 @@ int BchGrpcClient::subscribe_raw_transactions(std::function<void (std::string tx
     grpc::Status status = reader->Finish();
 }
 
-int BchGrpcClient::subscribe_raw_blocks(std::function<void (std::string block)> callback) {
+int BchdGrpcClient::subscribe_raw_blocks(std::function<void (std::string block)> callback) {
     
     grpc::ClientContext context;
 
