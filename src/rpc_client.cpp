@@ -40,7 +40,6 @@ std::pair<bool, std::uint32_t> RpcClient::get_best_block_height() {
     if (RpcClient::rpc_json) {
         return RpcClient::rpc_json->get_best_block_height();
     } else {
-        std::cout << "call " << std::endl;
         return RpcClient::rpc_grpc->get_best_block_height();
     }
 }

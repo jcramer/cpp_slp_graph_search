@@ -13,6 +13,8 @@ In-memory SLP Graph Search server.
 
 Install recent version of [Boost](https://www.boost.org/)
 
+Install zmq: `$ apt-get install libzmq3-dev`
+
 Install [SWIG 3](http://www.swig.org)
 
 Follow [this](https://github.com/grpc/grpc/blob/master/BUILDING.md) guide to install gRPC and Protobuf for your system if it is not already installed.
