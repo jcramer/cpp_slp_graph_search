@@ -613,10 +613,9 @@ int main(int argc, char * argv[])
             std::string cert((std::istreambuf_iterator<char>(cert_file)),
                               std::istreambuf_iterator<char>());
             cred_opts->pem_root_certs = cert;
-            channel_creds = grpc::SslCredentials(*cred_opts);
-        } else {
-            channel_creds = grpc::InsecureChannelCredentials();
         }
+
+        channel_creds = grpc::SslCredentials(*cred_opts);
 
         // create server channel
         grpc_target = toml::find<std::string> (config, "bchd", "host") +
