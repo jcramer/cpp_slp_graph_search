@@ -544,7 +544,7 @@ bool get_rpc_type(toml::value config) {
 std::string get_grpc_cert_path(toml::value config) {
     try
     {
-        return toml::find<std::string>(config, "bchd", "root_cert_path");
+        return toml::find<std::string>(config, "bchd", "cert_path");
     }
     catch(const std::exception& e)
     {
@@ -610,9 +610,14 @@ int main(int argc, char * argv[])
         if (cert_path.size() > 0) {
             std::ifstream cert_file;
             cert_file.open(cert_path);
-            std::string cert((std::istreambuf_iterator<char>(cert_file)),
-                              std::istreambuf_iterator<char>());
-            cred_opts->pem_root_certs = cert;
+            if (cert_file.good()) {
+                std::string cert((std::istreambuf_iterator<char>(cert_file)),
+                                  std::istreambuf_iterator<char>());
+                cred_opts->pem_root_certs = cert;
+            } else {
+                spdlog::error("invalid bchd cert_path");
+                return EXIT_FAILURE;
+            }
         }
 
         channel_creds = grpc::SslCredentials(*cred_opts);
