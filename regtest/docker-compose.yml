@@ -1,0 +1,45 @@
+version: "3.8"
+services:
+  
+  # a bchd full node for gs++ to connect to
+  bchd1:
+    image: "bchd"
+    build:
+      dockerfile: "Dockerfile.bchd"
+      context: "."
+    volumes: 
+      - ./:/data       # stores self-generated rpc.bchd1.key & rpc.bchd1.cert here
+    entrypoint: [ "bchd", "--regtest", "--addrindex", "--txindex", "--grpclisten=0.0.0.0", "--rpccert=/data/rpc.bchd1.cert", "--rpckey=/data/rpc.bchd1.key", "-C", "/data/bchd.conf" ]
+    expose:
+      - "18333"        # bitcoin network
+    ports:
+      - "18335:18335"  # gRPC bchrpc service
+
+  # gs++ connected to bchd1
+  graphsearch:
+    image: "graphsearch"
+    build:
+      dockerfile: "./Dockerfile.regtest"
+      context: ".."
+    depends_on:
+      - bchd1
+    volumes:
+      - ./:/data
+    entrypoint: [ "/data/gs++.sh" ]
+    ports:
+      - "50051:50051"  # gRPC graphsearch service
+      - "29069:29069"  # zmq publish
+
+  # a second bchd full node to mine and allow testing double-spends
+  bchd2: 
+    image: "bchd"
+    build:
+      dockerfile: "Dockerfile.bchd"
+      context: "."
+    volumes: 
+      - ./:/data       # stores self-generated rpc.bchd2.key & rpc.bchd2.cert here
+    entrypoint: [ "bchd", "--regtest", "--addrindex", "--txindex", "--grpclisten=0.0.0.0", "--rpccert=/data/rpc.bchd2.cert", "--rpckey=/data/rpc.bchd2.key", "-C", "/data/bchd.conf" ]
+    expose:
+      - "18333"        # bitcoin network
+    ports:
+      - "18336:18335"  # gRPC bchrpc service

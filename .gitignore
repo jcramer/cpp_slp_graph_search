@@ -1,2 +1,4 @@
 build
 build-afl
+build_loc
+node_modules

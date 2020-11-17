@@ -1,0 +1,14 @@
+# hidden files/dirs
+.devcontainer
+.vscode
+.dockerignore
+.gitignore
+
+# directories
+regtest
+build
+build_loc
+
+# individual files
+config.toml
+Dockerfile.devcontainer
