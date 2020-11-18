@@ -11,7 +11,7 @@ services:
       - ./:/data       # stores self-generated rpc.bchd1.key & rpc.bchd1.cert here
     entrypoint: [ "bchd", "--regtest", "--addrindex", "--txindex", "--grpclisten=0.0.0.0", "--rpccert=/data/rpc.bchd1.cert", "--rpckey=/data/rpc.bchd1.key", "-C", "/data/bchd.conf" ]
     expose:
-      - "18333"        # bitcoin network
+      - "18444"        # bitcoin regtest network
     ports:
       - "18335:18335"  # gRPC bchrpc service
 
@@ -30,7 +30,7 @@ services:
       - "50051:50051"  # gRPC graphsearch service
       - "29069:29069"  # zmq publish
 
-  # a second bchd full node to mine and allow testing double-spends
+  # a second bchd full node using json-rpc to generate blocks, connect nodes, and double spend
   bchd2: 
     image: "bchd"
     build:
@@ -38,8 +38,8 @@ services:
       context: "."
     volumes: 
       - ./:/data       # stores self-generated rpc.bchd2.key & rpc.bchd2.cert here
-    entrypoint: [ "bchd", "--regtest", "--addrindex", "--txindex", "--grpclisten=0.0.0.0", "--rpccert=/data/rpc.bchd2.cert", "--rpckey=/data/rpc.bchd2.key", "-C", "/data/bchd.conf" ]
+    entrypoint: [ "bchd", "--regtest", "--addrindex", "--txindex", "--notls", "-C", "/data/bchd.conf" ]
     expose:
-      - "18333"        # bitcoin network
+      - "18444"        # bitcoin regtest network
     ports:
-      - "18336:18335"  # gRPC bchrpc service
+      - "18334:18334"  # RPC service
