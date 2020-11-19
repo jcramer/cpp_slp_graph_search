@@ -2,28 +2,31 @@ import { step } from 'mocha-steps';
 import * as assert from "assert";
 
 import { GrpcClient } from "grpc-bchrpc-node";
-import { GraphSearchClient } from "grpc-graphsearch-node";
-const rpcClient = require('bitcoin-rpc-promise');
+// import { GraphSearchClient } from "grpc-graphsearch-node";
 
 const bchd1Grpc = new GrpcClient({ url: "localhost:18335", rootCertPath: "./rpc.bchd1.cert" });
-const gsGrpc = new GraphSearchClient({ url: "localhost:50051" });
+// const gsGrpc = new GraphSearchClient({ url: "localhost:50051" });
+const rpcClient = require('bitcoin-rpc-promise');
 const bch2Rpc = new rpcClient('http://bitcoin:password@0.0.0.0:18334');
+
+import { PrivateKey, Networks } from "bitcore-lib-cash";
+const cashAddr = require("bchaddrjs-slp");
 
 describe("network health check", () => {
 
-    step("bchd1", async () => {
+    step("bchd1 ready", async () => {
         const info = await bchd1Grpc.getBlockchainInfo();
         assert.strictEqual(info.getBitcoinNet(), 1);
     });
 
-    step("gs++", async () => {
-        const status = await gsGrpc.getStatus();
-        const height = status.getBlockHeight();
-        console.log(height);
-        assert.ok(height >= 0);
-    });
+    // step("gs++ ready (connected to bchd1)", async () => {
+    //     const status = await gsGrpc.getStatus();
+    //     const height = status.getBlockHeight();
+    //     //console.log(height);
+    //     assert.ok(height >= 0);
+    // });
 
-    step("bchd2", async () => {        
+    step("bchd2 ready (connected to bchd1)", async () => {        
         let res = await bch2Rpc.getPeerInfo();
         assert.strictEqual(typeof res, "object");
 
@@ -32,12 +35,26 @@ describe("network health check", () => {
             res = await bch2Rpc.getPeerInfo();
         }
 
-        assert.strictEqual(res.length, 1);
+        assert.ok(res.length == 1);
     });
 });
 
+const privKey1 = new PrivateKey("cPgxbS8PaxXoU9qCn1AKqQzYwbRCpizbsG98xU2vZQzyZCJt4NjB", Networks.testnet);
+const wallet1 = {
+    _privKey: privKey1,
+    address: cashAddr.toRegtestAddress(privKey1.toAddress().toString()),
+    wif: privKey1.toWIF(),
+    pubKey: privKey1.toPublicKey()
+};
+
 describe("basic tests", async () => {
     step("generate block to address", async () => {
+
+        let res = await bch2Rpc.generate(1);
+        res = await bch2Rpc.generate(1);
+        res = await bch2Rpc.generate(1);
+
+        console.log(res);
         // todo...
         assert.ok(0);
     });

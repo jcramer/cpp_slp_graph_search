@@ -37,8 +37,8 @@ services:
       dockerfile: "Dockerfile.bchd"
       context: "."
     volumes: 
-      - ./:/data       # stores self-generated rpc.bchd2.key & rpc.bchd2.cert here
-    entrypoint: [ "bchd", "--regtest", "--addrindex", "--txindex", "--notls", "-C", "/data/bchd.conf" ]
+      - ./:/data       # stores bchd.sh here
+    entrypoint: [ "/data/bchd.sh", "qqeenvjm2fez38kye73zflqpdccuhcux0y760hgsyp" ]
     expose:
       - "18444"        # bitcoin regtest network
     ports:
