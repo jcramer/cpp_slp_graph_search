@@ -3,14 +3,13 @@ import * as assert from "assert";
 
 import { GrpcClient } from "grpc-bchrpc-node";
 // import { GraphSearchClient } from "grpc-graphsearch-node";
+import { PrivateKey, Networks } from "bitcore-lib-cash";
+import * as bchaddrjs from "bchaddrjs-slp";
 
 const bchd1Grpc = new GrpcClient({ url: "localhost:18335", rootCertPath: "./rpc.bchd1.cert" });
 // const gsGrpc = new GraphSearchClient({ url: "localhost:50051" });
 const rpcClient = require('bitcoin-rpc-promise');
 const bch2Rpc = new rpcClient('http://bitcoin:password@0.0.0.0:18334');
-
-import { PrivateKey, Networks } from "bitcore-lib-cash";
-const cashAddr = require("bchaddrjs-slp");
 
 describe("network health check", () => {
 
@@ -42,7 +41,7 @@ describe("network health check", () => {
 const privKey1 = new PrivateKey("cPgxbS8PaxXoU9qCn1AKqQzYwbRCpizbsG98xU2vZQzyZCJt4NjB", Networks.testnet);
 const wallet1 = {
     _privKey: privKey1,
-    address: cashAddr.toRegtestAddress(privKey1.toAddress().toString()),
+    address: bchaddrjs.toRegtestAddress(privKey1.toAddress().toString()),
     wif: privKey1.toWIF(),
     pubKey: privKey1.toPublicKey()
 };
