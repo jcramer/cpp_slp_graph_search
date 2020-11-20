@@ -873,7 +873,7 @@ int main(int argc, char * argv[])
                             current_block_hash = block.block_hash;
 
                             if (zmqpub) {
-                                spdlog::info("publishing zmq block {}", block.merkle_root.decompress(true));
+                                spdlog::info("publishing zmq block {}", block.block_hash.decompress(true));
 
                                 const std::vector<std::uint8_t> bserial = block.serialize();
                                 std::array<zmq::const_buffer, 2> msgs = {
@@ -960,7 +960,7 @@ int main(int argc, char * argv[])
                 current_block_hash = block.block_hash;
 
                 if (zmqpub) {
-                    spdlog::info("publishing zmq block {}", block.merkle_root.decompress(true));
+                    spdlog::info("publishing zmq block {}", block.block_hash.decompress(true));
 
                     const std::vector<std::uint8_t> bserial = block.serialize();
                     std::array<zmq::const_buffer, 2> msgs = {
