@@ -1,0 +1,34 @@
+version: "3.5"
+services:
+
+  # the node not connected to SLPDB
+  bitcoind1: 
+    image: "bchn"
+    build:
+      context: "."
+      dockerfile: "Dockerfile.bchn"
+    command: "bitcoind"
+    healthcheck:
+      test: ["CMD", "/entrypoint.sh", "bitcoin-cli", "getblockchaininfo"]  # TODO: need to wait for wallet to finish loading.
+    expose:
+      - "18333" # regnet
+      - "28332" # zmq publish tx/block
+    ports:
+      - "18443:18443"
+    volumes:
+      - ./bitcoin.conf:/data/bitcoin.conf
+
+  # gs++ connected to bchd1
+  graphsearch:
+    image: "graphsearch"
+    build:
+      dockerfile: "./Dockerfile.regtest"
+      context: ".."
+    depends_on:
+      - bitcoind1
+    volumes:
+      - ./:/data
+    entrypoint: [ "/data/gs++-entrypoint.sh" ]
+    ports:
+      - "50051:50051"  # gRPC graphsearch service
+      - "29069:29069"  # zmq publish

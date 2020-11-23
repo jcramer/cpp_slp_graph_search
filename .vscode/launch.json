@@ -7,11 +7,20 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Run Mocha",
-            "program": "${workspaceRoot}/regtest/node_modules/mocha/bin/_mocha",
+            "name": "BCHD Regtests (Run Mocha)",
+            "program": "${workspaceRoot}/regtest-bchd/node_modules/mocha/bin/_mocha",
             "args": ["--timeout", "1000000", "--exit", "--require", "mocha-steps"],
-            "cwd": "${workspaceRoot}/regtest",
+            "cwd": "${workspaceRoot}/regtest-bchd",
             "outFiles": []
         },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "BCHN Regtests (Run Mocha)",
+            "program": "${workspaceRoot}/regtest-bchn/node_modules/mocha/bin/_mocha",
+            "args": ["--timeout", "1000000", "--exit", "--require", "mocha-steps"],
+            "cwd": "${workspaceRoot}/regtest-bchn",
+            "outFiles": []
+        }
     ]
 }

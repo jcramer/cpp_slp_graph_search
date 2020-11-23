@@ -5,7 +5,8 @@
 .gitignore
 
 # directories
-regtest
+regtest-bchd
+regtest-bchn
 build
 build_loc
 

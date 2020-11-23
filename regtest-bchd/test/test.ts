@@ -2,12 +2,12 @@ import { step } from 'mocha-steps';
 import * as assert from "assert";
 
 import { GrpcClient } from "grpc-bchrpc-node";
-// import { GraphSearchClient } from "grpc-graphsearch-node";
+import { GraphSearchClient } from "grpc-graphsearch-node";
 import { PrivateKey, Networks } from "bitcore-lib-cash";
 import * as bchaddrjs from "bchaddrjs-slp";
 
 const bchd1Grpc = new GrpcClient({ url: "localhost:18335", rootCertPath: "./rpc.bchd1.cert" });
-// const gsGrpc = new GraphSearchClient({ url: "localhost:50051" });
+const gsGrpc = new GraphSearchClient({ url: "localhost:50051", notls: true });
 const rpcClient = require('bitcoin-rpc-promise');
 const bch2Rpc = new rpcClient('http://bitcoin:password@0.0.0.0:18334');
 
@@ -18,12 +18,12 @@ describe("network health check", () => {
         assert.strictEqual(info.getBitcoinNet(), 1);
     });
 
-    // step("gs++ ready (connected to bchd1)", async () => {
-    //     const status = await gsGrpc.getStatus();
-    //     const height = status.getBlockHeight();
-    //     //console.log(height);
-    //     assert.ok(height >= 0);
-    // });
+    step("gs++ ready (connected to bchd1)", async () => {
+        const status = await gsGrpc.getStatus();
+        const height = status.getBlockHeight();
+        //console.log(height);
+        assert.ok(height >= 0);
+    });
 
     step("bchd2 ready (connected to bchd1)", async () => {        
         let res = await bch2Rpc.getPeerInfo();

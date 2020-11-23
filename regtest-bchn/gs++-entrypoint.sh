@@ -1,8 +1,11 @@
 #!/bin/bash
 
 # set env vars
-export BCHD_ADDR=`dig +short bchd1 | tail -n1`
-export BCHD_CERT_PATH=/data/rpc.bchd1.cert
+export BITCOIND_ADDR=`dig +short bitcoind1 | tail -n1`
+export BCHD_ADDR=""
+export BCHD_CERT_PATH=""
+export USE_BCHD_GRPC=false
+export USE_BITCOIND_ZMQ=true
 
 # replace env var flags
 envsubst < /home/config.regtest.toml > /home/config.toml

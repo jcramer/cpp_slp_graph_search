@@ -6,9 +6,9 @@ host = "0.0.0.0"
 port = 50051
 
 [bitcoind]
-host = "0.0.0.0"
-port = 8332
-user = "user"
+host = "${BITCOIND_ADDR}"
+port = 18443
+user = "bitcoin"
 pass = "password"
 zmq_port = 28332
 
@@ -34,8 +34,8 @@ private_key = "0000000000000000000000000000000000000000000000000000000000000000"
 [services]
 graphsearch = true
 graphsearch_rpc = true
-bitcoind_zmq = false
-bchd_grpc = true
+bitcoind_zmq = ${USE_BITCOIND_ZMQ}
+bchd_grpc = ${USE_BCHD_GRPC}
 grpc = true
 utxosync = false
 cache = true
