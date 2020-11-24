@@ -1,8 +1,41 @@
 version: "3.5"
 services:
 
-  # the node not connected to SLPDB
+  # BCHN full node for gs++ to connect to
   bitcoind1: 
+    image: "bchn"
+    build:
+      context: "."
+      dockerfile: "Dockerfile.bchn"
+    command: "bitcoind"
+    healthcheck:
+      test: ["CMD", "/entrypoint.sh", "bitcoin-cli", "getblockchaininfo"]
+    expose:
+      - "18333" # regnet
+      - "28332" # zmq publish tx/block
+    ports:
+      - "18443:18443"
+    volumes:
+      - ./bitcoin.conf:/data/bitcoin.conf
+
+  # gs++ connected to bitcoind1
+  graphsearch:
+    image: "graphsearch"
+    build:
+      dockerfile: "./Dockerfile.regtest"
+      context: ".."
+    depends_on:
+      bitcoind1:
+        condition: service_healthy 
+    volumes:
+      - ./:/data
+    entrypoint: [ "/data/gs++-entrypoint.sh" ]
+    ports:
+      - "50051:50051"  # gRPC graphsearch service
+      - "29069:29069"  # zmq publish
+
+  # Second BCHN for doing double spends
+  bitcoind2: 
     image: "bchn"
     build:
       context: "."
@@ -14,21 +47,8 @@ services:
       - "18333" # regnet
       - "28332" # zmq publish tx/block
     ports:
-      - "18443:18443"
-    volumes:
-      - ./bitcoin.conf:/data/bitcoin.conf
-
-  # gs++ connected to bchd1
-  graphsearch:
-    image: "graphsearch"
-    build:
-      dockerfile: "./Dockerfile.regtest"
-      context: ".."
-    depends_on:
+      - "18444:18443"
+    depends_on: 
       - bitcoind1
     volumes:
-      - ./:/data
-    entrypoint: [ "/data/gs++-entrypoint.sh" ]
-    ports:
-      - "50051:50051"  # gRPC graphsearch service
-      - "29069:29069"  # zmq publish
+      - ./bitcoin.conf:/data/bitcoin.conf
