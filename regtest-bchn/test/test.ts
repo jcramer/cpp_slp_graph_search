@@ -1,161 +1,111 @@
 import { step } from 'mocha-steps';
 import * as assert from "assert";
 import { GraphSearchClient } from "grpc-graphsearch-node";
-import { PrivateKey, Networks } from "bitcore-lib-cash";
-import * as bchaddrjs from "bchaddrjs-slp";
-import { ValidatorType1, Slp, Transaction, SlpTransactionType, Crypto } from "slp-validate";
+import { BigNumber } from "bignumber.js";
+import { BitcoinRpcClient, RpcWalletClient, sleep, validityCache } from './helpers/rpcwallet';
 
-import { retrieveSlpUtxos, createRawTx } from "slp-light";
-import { BchUtxoRetrieverFacade } from "slp-light/src/facade/UtxoRetrieverFacade";
-import { Address, SlpToken, Utxo } from 'slp-light/build/main/utxo/Utxo';
-import { BigNumber } from "bignumber.js"
+// rpc clients for talking to the two full nodes
+const rpcClient = require('bitcoin-rpc-promise');  // TODO: create a new typed version of this library with SLPDB patch applied for missing commands
+const bchnRpc1 = new rpcClient('http://bitcoin:password@0.0.0.0:18443') as BitcoinRpcClient;
+const bchnRpc2 = new rpcClient('http://bitcoin:password@0.0.0.0:18444') as BitcoinRpcClient;
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// setup the rpc connections to bitcoind nodes and gs++
-const rpcClient = require('bitcoin-rpc-promise');
-const bchnRpc1 = new rpcClient('http://bitcoin:password@0.0.0.0:18443');
-const bchnRpc2 = new rpcClient('http://bitcoin:password@0.0.0.0:18444');
+// graphsearch client (will be connecting to bitcoind1, see docker-compose.yml)
 const gsGrpc = new GraphSearchClient({ url: "localhost:50051", notls: true });
 
-// setup a new local SLP validator instance
-const slpValidator = new ValidatorType1({ getRawTransaction: async (txid) => await bchnRpc1.getRawTransaction(txid) });
+// stubs for the different wallets.
+let wallet1: RpcWalletClient;
+let wallet2: RpcWalletClient;
 
-// a simple method to get slp value of 
-const getSlpToken = async (txid: string, vout: number): Promise<SlpToken|undefined> => {
-    const isValidSlp = await slpValidator.isValidSlpTxid({txid});
-    if (!isValidSlp) {
-        return null;
-    }
-    
-    const txnBuf = slpValidator.cachedRawTransactions.get(txid);
-    const txn = Transaction.parseFromBuffer(txnBuf);
+// stubs for slp token info
+let tokenId: string;
 
-    let slpMsg = Slp.parseSlpOutputScript(txn.outputs[0].scriptPubKey);
-    if (vout < txn.outputs.length) {
-        switch (slpMsg.transactionType) {
-            case SlpTransactionType.GENESIS:
-                if (vout === 1) {
-                    return { slpTokenId: txid, amount: new BigNumber(slpMsg.genesisOrMintQuantity.toString()), transactionType: "GENESIS", hasBaton: false };
-                } else if (slpMsg.containsBaton && vout === slpMsg.batonVout) {
-                    return { slpTokenId: txid, amount: new BigNumber(0), transactionType: "GENESIS", hasBaton: true };
-                }
-            case SlpTransactionType.MINT:
-                if (vout === 1) {
-                    return { slpTokenId: txid, amount: new BigNumber(slpMsg.genesisOrMintQuantity.toString()), transactionType: "MINT", hasBaton: false };
-                } else if (slpMsg.containsBaton && vout === slpMsg.batonVout) {
-                    return { slpTokenId: txid, amount: new BigNumber(0), transactionType: "MINT", hasBaton: true };
-                }
-            case SlpTransactionType.SEND:
-                if (vout < slpMsg.sendOutputs!.length) {
-                    return { slpTokenId: txid, amount: new BigNumber(slpMsg.sendOutputs[vout]), transactionType: "SEND", hasBaton: false };
-                }
-            default:
-                throw Error("unhandled slp token type");
-        }
-    }
-    throw Error("no slp assignment");
-}
-
-// setup slp-light utxo retreiver
-const retriever: BchUtxoRetrieverFacade = {
-    async getBchUtxosFromAddress(address: Address): Promise<Utxo[]> {
-
-        let unspent: RpcListUnspentRes[] = await bchnRpc1.listUnspent(0, null, [address.cashAddress]);
-        let txos: Utxo[] = [];
-        for (const txo of unspent) {
-            txos.push({
-                address,
-                slpToken: await getSlpToken(txo.txid, txo.vout),
-                txId: txo.txid,
-                index: txo.vout,
-                amount: txo.amount,
-            });
-        }
-
-        return txos;
-    }
-}
+// TODO?: setup async randomized block generation for the two full nodes using setTimeout.
 
 describe("network health check", () => {
-
     step("bitcoind1 ready", async () => {
         const info = await bchnRpc1.getBlockchainInfo();
         assert.strictEqual(info.chain, "regtest");
     });
-
     step("gs++ ready (connected to bitcoind1)", async () => {
         const status = await gsGrpc.getStatus();
         const height = status.getBlockHeight();
         assert.ok(height >= 0);
     });
-
     step("bitcoind1 ready", async () => {
         const info = await bchnRpc2.getBlockchainInfo();
         assert.strictEqual(info.chain, "regtest");
     });
+    step("bitcoind1 and bitcoind2 are connected", async () => {
+        let peerInfo1 = await bchnRpc1.getPeerInfo();
+        if (peerInfo1.length < 1) {
+            await bchnRpc1.addNode("bitcoind2", "onetry");
+            while (peerInfo1.length < 1) {
+                await sleep(100);
+                peerInfo1 = await bchnRpc1.getPeerInfo();
+            }
+        }
+        assert.strictEqual(peerInfo1.length, 1);
 
+        let peerInfo2 = await bchnRpc2.getPeerInfo();
+        assert.strictEqual(peerInfo2.length, 1);
+    });
 });
 
-// const privKey1 = new PrivateKey("cPgxbS8PaxXoU9qCn1AKqQzYwbRCpizbsG98xU2vZQzyZCJt4NjB", Networks.testnet);
-// const wallet1 = {
-//     _privKey: privKey1,
-//     address: bchaddrjs.toRegtestAddress(privKey1.toAddress().toString()),
-//     wif: privKey1.toWIF(),
-//     pubKey: privKey1.toPublicKey()
-// };
-
-let address: Address;
-let wif: string;
-
-describe("basic tests", async () => {
-    step("generate block to address", async () => {
-
-        // grab the unspent txos and grab first address with a balance
-        let unspent: RpcListUnspentRes[] = await bchnRpc1.listUnspent();
-        address = { cashAddress: unspent[0].address, slpAddress: bchaddrjs.toSlpAddress(unspent[0].address) };
-        let txos = await retriever.getBchUtxosFromAddress(address);
-
-        // let unspent = await bchnRpc1.listUnspent(0);
-        // while (unspent.length === 0) {
-        //     await bchnRpc1.generate(1);
-        //     unspent = await bchnRpc1.listUnspent(0);
-        // }
-
-        // address = unspent[0].address;
-        // wif = await bchnRpc1.dumpPrivKey(address);
-
-        //console.log(res);
-
-        // todo...
-
-        assert.ok(0);
+describe("basic wallet setup", async () => {
+    step("setup wallet 1 (at bitcoind1)", async () => {
+        wallet1 = await RpcWalletClient.CreateRegtestWallet(bchnRpc1);
+        let bal = await wallet1.getAllUnspent(false);
+        assert.ok(bal.length > 0);
     });
-
+    // step("setup wallet 2 (at bitcoind2)", async () => {
+    //     // setup a new wallet instances
+    //     wallet2 = await RpcWalletClient.CreateRegtestWallet(bchnRpc2);
+    //     let bal = await wallet1.getAllUnspent();
+    //     assert.ok(bal.length > 0);
+    //     assert.ok(1);
+    // });
     step("submit an slp genesis transaction", async () => {
-        // todo...
-        assert.ok(0);
+        tokenId = await wallet1.slpGenesis();
+        await sleep(100);
+        let gs = await gsGrpc.trustedValidationFor({ hash: tokenId, reversedHashOrder: true });
+        assert.strictEqual(gs.getValid(), true);
     });
-
-    step("submit an slp send transaction", async () => {
-        // todo...
-        assert.ok(0);
-    });
-
     step("submit an slp mint transaction", async () => {
-        // todo...
-        assert.ok(0);
+        let txid = await wallet1.slpMint(tokenId, { address: wallet1.address, amount: new BigNumber(100) }, 2);
+        await sleep(100);
+        let gs = await gsGrpc.trustedValidationFor({ hash: txid, reversedHashOrder: true });
+        assert.strictEqual(gs.getValid(), true);
+    });
+    step("submit an slp send transaction", async () => {
+        let txid = await wallet1.slpSend(tokenId, [{address: wallet1.address, tokenAmount: new BigNumber(1)}]);
+        await sleep(100);
+        let gs = await gsGrpc.trustedValidationFor({ hash: txid, reversedHashOrder: true });
+        assert.strictEqual(gs.getValid(), true);
+    });
+    step("long minting string returns proper graph search results, 1 mint per block", async () => {
+        let dagCount: number|null = null;
+        for (let i = 0; i < 10000; i++) {
+
+            // get a new address to send the generated BCH and minted SLP (keeps unspent list small for main address)
+            let _miningAddr = await bchnRpc1.getNewAddress();
+
+            // mint slp token & check gs++ validity
+            let txid = await wallet1.slpMint(tokenId, {address: {cashAddress:_miningAddr, slpAddress: _miningAddr}, amount: new BigNumber(100)} , 2);
+            await sleep(10);
+            let gs1 = await gsGrpc.trustedValidationFor({ hash: txid, reversedHashOrder: true });
+            assert.strictEqual(gs1.getValid(), true);
+            validityCache.add(txid);
+
+            // check the graph search results length is increased by 1
+            let gs2 = await gsGrpc.graphSearchFor({ hash: txid, reversedHashOrder: true });
+            if (! dagCount) {
+                dagCount = gs2.getTxdataList_asU8().length;
+            } else {
+                assert.strictEqual(++dagCount, gs2.getTxdataList_asU8().length);
+            }
+
+            // mine the mint txn into a block
+            await bchnRpc1.generateToAddress(1, _miningAddr);
+        }
     });
 });
-
-interface RpcListUnspentRes {
-    address: string;
-    amount: number;
-    confirmations: number;
-    safe:boolean;
-    scriptPubKey: string;
-    solvable: boolean;
-    spendable:boolean;
-    txid: string;
-    vout: number;
-}

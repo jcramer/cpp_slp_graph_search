@@ -60,7 +60,7 @@ RUN cd /home/cpp_slp_graph_search \
   && cmake \
           -DCMAKE_BUILD_TYPE=Debug \
       .. \
-  && make -j
+  && make -j 4
 
 # Add tools for manipulating env vars
 RUN apt install -y dnsutils gettext
