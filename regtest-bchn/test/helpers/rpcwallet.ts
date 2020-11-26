@@ -8,19 +8,23 @@ import * as mdm from "slp-mdm";
 export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export const validityCache = new Set<string>();
 const txnCache = new Map<string, Buffer>();
+type txid = string;
 
 export class RpcWalletClient implements IWallet {
     _rpcClient: BitcoinRpcClient;
     _slpValidator: ValidatorType1;
-
     _unspentCache: RpcListUnspentRes[] = [];
-
     
     address!: Address;
+    _miningAddress!: string;
     wif!: string;
+
+    _addresses = new Set<string>();
+    _utxos: Utxo[] = [];
 
     public static async CreateRegtestWallet(rpcClient: BitcoinRpcClient) {
         let w = new RpcWalletClient(rpcClient);
+        w._miningAddress = await w.getNewAddress();
         await w.generateForBalance();
         return w
     }
@@ -32,20 +36,66 @@ export class RpcWalletClient implements IWallet {
         }});
     }
 
+    public async getNewAddress(): Promise<string> {
+        let addr = await this._rpcClient.getNewAddress();
+        this._addresses.add(addr);
+        return addr;
+    }
+
+    public async submitTransaction(txnHex: string): Promise<txid> {
+        let txid = await this._rpcClient.sendRawTransaction(txnHex);
+        
+        let txn = new Transaction(txnHex);
+
+        // remove spent inputs
+        for (const inp of txn.inputs) {
+            this._utxos = this._utxos.filter(txo => !(txo.txId === inp.prevTxId.toString("hex") && txo.index === inp.outputIndex));
+        }
+
+        // add new outputs
+        for (let i = 0; i < txn.outputs.length; i++) {
+            let txo = txn.outputs[i];
+            if (!txo.script.toAddress()) {
+                continue;
+            }
+            let address = bchaddrjs.toRegtestAddress(txo.script.toAddress().toString());
+            if (this._addresses.has(address)) {
+                this._utxos.push({
+                    txId: txn.id,
+                    index: i,
+                    amount: txo.satoshis / 10**8,
+                    script: txo.script,
+                    slpToken: await this._getSlpToken(txn.id, i),
+                    address: { cashAddress: address, slpAddress: bchaddrjs.toSlpAddress(address) }
+                } as Utxo);
+            }
+        }
+
+        return txid;
+    }
+
     private async generateForBalance(): Promise<void> {
         // grab the unspent txos and grab first address with a balance
-        let unspent: RpcListUnspentRes[] = await this._rpcClient.listUnspent();
+        let unspent: RpcListUnspentRes[] = await this._rpcClient.listUnspent(0);
         this._unspentCache = unspent;
 
         // mine some coins if necessary
         if (unspent.length < 1) {
-            let _miningAddr = await this._rpcClient.getNewAddress();
+            let address = await this.getNewAddress();
+            await this._rpcClient.generateToAddress(1, address);
             while (unspent.length === 0) {
-                _miningAddr = await this._rpcClient.getNewAddress();
-                await this._rpcClient.generateToAddress(1, _miningAddr);
+                await this._rpcClient.generateToAddress(1, this._miningAddress);
                 unspent = await this._rpcClient.listUnspent(0);
             }
-        } 
+        }
+
+        // sort in decending order
+        unspent.sort((a, b) => b.amount - a.amount);
+
+        // add our inital set of addresses
+        // unspent.forEach(txo => {
+        //     this._addresses.add(txo.address);
+        // });
 
         this.address = { cashAddress: unspent[0].address, slpAddress: bchaddrjs.toSlpAddress(unspent[0].address) };
         this.wif = await this._rpcClient.dumpPrivKey(this.address.cashAddress);
@@ -60,23 +110,46 @@ export class RpcWalletClient implements IWallet {
         return this._rpcClient.listUnspent(0, undefined, [address]);
     }
 
-    async _getUnspentTxos(address: Address): Promise<Utxo[]> {
-        let unspent: RpcListUnspentRes[] = await this._listUnspent(address.cashAddress);
+    async _getUnspentTxos(address: Address, useCache=true): Promise<Utxo[]> {
+        console.time("getUnspent");
+        let unspent: RpcListUnspentRes[];
         let txos: Utxo[] = [];
-        for (const txo of unspent) {
-            txos.push({
-                address,
-                slpToken: await this._getSlpToken(txo.txid, txo.vout),
-                txId: txo.txid,
-                index: txo.vout,
-                amount: txo.amount,
-            });
+        if (this._utxos.length === 0 || !useCache) {
+            unspent = await this._listUnspent(address.cashAddress);
+            for (const txo of unspent) {
+                txos.push({
+                    address,
+                    slpToken: await this._getSlpToken(txo.txid, txo.vout),
+                    txId: txo.txid,
+                    index: txo.vout,
+                    amount: txo.amount,
+                });
+            }
+            this._utxos = txos;
+        } else {
+            txos = this._utxos
         }
+        console.timeEnd("getUnspent");
         return txos;
     }
 
-    async getUtxosFromAddress(address: Address, tokenId?: string) {
+    async getUtxosFromAddress(address: Address, tokenId?: string, generateCoinsIfLow=true) {
         let txos: Utxo[] = await this._getUnspentTxos(address);
+
+        if (generateCoinsIfLow) {
+            let bchAmt = txos.filter(txo => !txo.slpToken).reduce((p, c, _) => p + c.amount , 0);
+            if (bchAmt < 0.1) {
+                await this._rpcClient.generateToAddress(1, this.address.cashAddress);
+                await this._rpcClient.generateToAddress(100, this._miningAddress);
+                txos = await this._getUnspentTxos(address, false);
+            }
+
+            bchAmt = txos.filter(txo => !txo.slpToken).reduce((p, c, _) => p + c.amount , 0);
+            if (bchAmt < 0.1) {
+                throw Error('failed to generate sufficient balance, restart regtest network')
+            }
+        }
+
         return { 
             bch: txos.filter(txo => !txo.slpToken).sort((a, b) => b.amount - a.amount),
             slp: txos.filter(txo => txo.slpToken && txo.slpToken!.slpTokenId === tokenId && !txo.slpToken.hasBaton),
@@ -85,7 +158,9 @@ export class RpcWalletClient implements IWallet {
     }
 
     async _getSlpToken(txid: string, vout: number): Promise<SlpToken|undefined> {
+        console.time("validation");
         const isValidSlp = validityCache.has(txid) ? true : await this._slpValidator.isValidSlpTxid({ txid });
+        console.timeEnd("validation");
         if (! isValidSlp) {
             return undefined;
         }
@@ -168,12 +243,12 @@ export class RpcWalletClient implements IWallet {
 
         // sign the transaction
         txn.sign(new PrivateKey(this.wif));
-        console.log(txn.id);
+        console.log(`txid: ${txn.id}`);
         let txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
 
         // broadcast
-        return this._rpcClient.sendRawTransaction(txnHex, false);
+        return this.submitTransaction(txnHex);
     }
 
     async slpMint(tokenIdHex: string, to: { address: Address, amount: BigNumber }, batonVout: number, type=0x01): Promise<string> {
@@ -218,12 +293,12 @@ export class RpcWalletClient implements IWallet {
 
         // sign the transaction
         txn.sign(new PrivateKey(this.wif));
-        console.log(txn.id);
+        console.log(`txid: ${txn.id}`);
         let txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
 
         // broadcast
-        return this._rpcClient.sendRawTransaction(txnHex, false);
+        return this.submitTransaction(txnHex);
     }
 
     async slpSend(tokenIdHex: string, to: { address: Address, tokenAmount: BigNumber }[]): Promise<string> {
@@ -272,12 +347,12 @@ export class RpcWalletClient implements IWallet {
 
         // sign the transaction
         txn.sign(new PrivateKey(this.wif));
-        console.log(txn.id);
+        console.log(`txid: ${txn.id}`);
         let txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
 
         // broadcast
-        return this._rpcClient.sendRawTransaction(txnHex, false);
+        return this.submitTransaction(txnHex);
     }
 }
 

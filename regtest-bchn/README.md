@@ -12,9 +12,9 @@ Testing for gs++ using json-rpc connection to BCHN.
 ### Testing Notes
 
 1. Gs++ txid graph look up time is increasing.
-    - 100 txns depth  = 1 ms
-    - 900 txns depth  = 5 ms
-    - 1100 txns depth = 
+    - 100 txns depth  = <1 ms
+    - 900 txns depth  = ~5 ms
+    - 3200 txns depth = ~15 ms
 2. ....
 
 ### Useful Docker Comands:

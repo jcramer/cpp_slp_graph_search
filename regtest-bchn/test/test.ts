@@ -85,13 +85,18 @@ describe("basic wallet setup", async () => {
     step("long minting string returns proper graph search results, 1 mint per block", async () => {
         let dagCount: number|null = null;
         for (let i = 0; i < 10000; i++) {
-
+            
+            console.time("new address");
             // get a new address to send the generated BCH and minted SLP (keeps unspent list small for main address)
-            let _miningAddr = await bchnRpc1.getNewAddress();
+            console.timeEnd("new address");
 
+            console.time("mint");
             // mint slp token & check gs++ validity
-            let txid = await wallet1.slpMint(tokenId, {address: {cashAddress:_miningAddr, slpAddress: _miningAddr}, amount: new BigNumber(100)} , 2);
+            let txid = await wallet1.slpMint(tokenId, {address: {cashAddress: wallet1._miningAddress, slpAddress: wallet1._miningAddress}, amount: new BigNumber(100)} , 2);
+            console.timeEnd("mint");
             await sleep(10);
+
+            console.time("gs++");
             let gs1 = await gsGrpc.trustedValidationFor({ hash: txid, reversedHashOrder: true });
             assert.strictEqual(gs1.getValid(), true);
             validityCache.add(txid);
@@ -103,9 +108,13 @@ describe("basic wallet setup", async () => {
             } else {
                 assert.strictEqual(++dagCount, gs2.getTxdataList_asU8().length);
             }
+            console.log(`dag size ${dagCount}`);
+            console.timeEnd("gs++");
 
+            console.time("generate");
             // mine the mint txn into a block
-            await bchnRpc1.generateToAddress(1, _miningAddr);
+            await bchnRpc1.generateToAddress(1, wallet1._miningAddress);
+            console.timeEnd("generate");
         }
     });
 });
