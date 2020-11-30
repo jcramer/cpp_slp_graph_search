@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-empty-interface */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import { BigNumber } from "bignumber.js";
 import { PrivateKey, Transaction } from "bitcore-lib-cash";
 import * as bchaddrjs from "bchaddrjs-slp";
@@ -7,6 +10,7 @@ import * as mdm from "slp-mdm";
 
 export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export const validityCache = new Set<string>();
+
 const txnCache = new Map<string, Buffer>();
 type txid = string;
 
@@ -14,38 +18,37 @@ export class RpcWalletClient implements IWallet {
     _rpcClient: BitcoinRpcClient;
     _slpValidator: ValidatorType1;
     _unspentCache: RpcListUnspentRes[] = [];
-    
+
     address!: Address;
-    _miningAddress!: string;
+    _miningAddress = bchaddrjs.toRegtestAddress(new PrivateKey().toAddress().toString());
     wif!: string;
 
     _addresses = new Set<string>();
     _utxos: Utxo[] = [];
 
     public static async CreateRegtestWallet(rpcClient: BitcoinRpcClient) {
-        let w = new RpcWalletClient(rpcClient);
-        w._miningAddress = await w.getNewAddress();
+        const w = new RpcWalletClient(rpcClient);
         await w.generateForBalance();
         return w
     }
 
     private constructor(rpcClient: BitcoinRpcClient) {
         this._rpcClient = rpcClient;
-        this._slpValidator = new ValidatorType1({ getRawTransaction: async (txid) => {
-            return await this._getRawTransaction(txid);
+        this._slpValidator = new ValidatorType1({ getRawTransaction: async (id) => {
+            return await this._getRawTransaction(id);
         }});
     }
 
     public async getNewAddress(): Promise<string> {
-        let addr = await this._rpcClient.getNewAddress();
+        const addr = await this._rpcClient.getNewAddress();
         this._addresses.add(addr);
         return addr;
     }
 
     public async submitTransaction(txnHex: string): Promise<txid> {
-        let txid = await this._rpcClient.sendRawTransaction(txnHex);
-        
-        let txn = new Transaction(txnHex);
+        const id = await this._rpcClient.sendRawTransaction(txnHex);
+
+        const txn = new Transaction(txnHex);
 
         // remove spent inputs
         for (const inp of txn.inputs) {
@@ -54,11 +57,11 @@ export class RpcWalletClient implements IWallet {
 
         // add new outputs
         for (let i = 0; i < txn.outputs.length; i++) {
-            let txo = txn.outputs[i];
+            const txo = txn.outputs[i];
             if (!txo.script.toAddress()) {
                 continue;
             }
-            let address = bchaddrjs.toRegtestAddress(txo.script.toAddress().toString());
+            const address = bchaddrjs.toRegtestAddress(txo.script.toAddress().toString());
             if (this._addresses.has(address)) {
                 this._utxos.push({
                     txId: txn.id,
@@ -71,7 +74,7 @@ export class RpcWalletClient implements IWallet {
             }
         }
 
-        return txid;
+        return id;
     }
 
     private async generateForBalance(): Promise<void> {
@@ -79,9 +82,11 @@ export class RpcWalletClient implements IWallet {
         let unspent: RpcListUnspentRes[] = await this._rpcClient.listUnspent(0);
         this._unspentCache = unspent;
 
+        unspent = unspent.sort((a, b) => b.amount - a.amount).filter(a => a.amount <= 50);
+
         // mine some coins if necessary
         if (unspent.length < 1) {
-            let address = await this.getNewAddress();
+            const address = await this.getNewAddress();
             await this._rpcClient.generateToAddress(1, address);
             while (unspent.length === 0) {
                 await this._rpcClient.generateToAddress(1, this._miningAddress);
@@ -89,21 +94,13 @@ export class RpcWalletClient implements IWallet {
             }
         }
 
-        // sort in decending order
-        unspent.sort((a, b) => b.amount - a.amount);
-
-        // add our inital set of addresses
-        // unspent.forEach(txo => {
-        //     this._addresses.add(txo.address);
-        // });
-
         this.address = { cashAddress: unspent[0].address, slpAddress: bchaddrjs.toSlpAddress(unspent[0].address) };
         this.wif = await this._rpcClient.dumpPrivKey(this.address.cashAddress);
     }
 
 
-    async _getRawTransaction(txid: string): Promise<string> {
-        return this._rpcClient.getRawTransaction(txid) as Promise<string>;
+    async _getRawTransaction(id: string): Promise<string> {
+        return this._rpcClient.getRawTransaction(id) as Promise<string>;
     }
 
     async _listUnspent(address: string): Promise<RpcListUnspentRes[]> {
@@ -150,21 +147,21 @@ export class RpcWalletClient implements IWallet {
             }
         }
 
-        return { 
+        return {
             bch: txos.filter(txo => !txo.slpToken).sort((a, b) => b.amount - a.amount),
-            slp: txos.filter(txo => txo.slpToken && txo.slpToken!.slpTokenId === tokenId && !txo.slpToken.hasBaton),
-            baton: txos.filter(txo => txo.slpToken && txo.slpToken!.slpTokenId === tokenId && txo.slpToken.hasBaton)
+            slp: txos.filter(txo => txo.slpToken && txo.slpToken.slpTokenId === tokenId && !txo.slpToken.hasBaton),
+            baton: txos.filter(txo => txo.slpToken && txo.slpToken.slpTokenId === tokenId && txo.slpToken.hasBaton)
         }
     }
 
-    async _getSlpToken(txid: string, vout: number): Promise<SlpToken|undefined> {
+    async _getSlpToken(id: string, vout: number): Promise<SlpToken|undefined> {
         console.time("validation");
-        const isValidSlp = validityCache.has(txid) ? true : await this._slpValidator.isValidSlpTxid({ txid });
+        const isValidSlp = validityCache.has(id) ? true : await this._slpValidator.isValidSlpTxid({ txid: id });
         console.timeEnd("validation");
         if (! isValidSlp) {
             return undefined;
         }
-        const txnBuf = txnCache.has(txid) ? txnCache.get(txid)! : this._slpValidator.cachedRawTransactions.get(txid)!;
+        const txnBuf = txnCache.has(id) ? txnCache.get(id)! : this._slpValidator.cachedRawTransactions.get(id)!;
         const txn = Txn.parseFromBuffer(txnBuf);
         let slpMsg: SlpTransactionDetails;
         try {
@@ -176,9 +173,9 @@ export class RpcWalletClient implements IWallet {
             switch (slpMsg.transactionType) {
                 case SlpTransactionType.GENESIS:
                     if (vout === 1 && slpMsg.genesisOrMintQuantity!.gt(0)) {
-                        return { slpTokenId: txid, amount: new BigNumber(slpMsg.genesisOrMintQuantity!.toString()), transactionType: "GENESIS", hasBaton: false };
+                        return { slpTokenId: id, amount: new BigNumber(slpMsg.genesisOrMintQuantity!.toString()), transactionType: "GENESIS", hasBaton: false };
                     } else if (slpMsg.containsBaton && vout === slpMsg.batonVout) {
-                        return { slpTokenId: txid, amount: new BigNumber(0), transactionType: "GENESIS", hasBaton: true };
+                        return { slpTokenId: id, amount: new BigNumber(0), transactionType: "GENESIS", hasBaton: true };
                     }
                     break;
                 case SlpTransactionType.MINT:
@@ -208,19 +205,19 @@ export class RpcWalletClient implements IWallet {
         }
     }
 
-    async bchSend(to: { address: string, satoshis: number }[]) {
-        throw Error('not implemented')
-    }
+    // async bchSend(to: { address: string, satoshis: number }[]) {
+    //     throw Error('not implemented')
+    // }
 
     async slpGenesis(type=0x01): Promise<string> {
 
-        let txos = await this.getUtxosFromAddress(this.address);
+        const txos = await this.getUtxosFromAddress(this.address);
 
-        let txn = new Transaction();
+        const txn = new Transaction();
 
         txn.from([
             ...txos.bch.map<Transaction.UnspentOutput>((txo, i, _) => {
-                //@ts-ignore
+                // @ts-ignore
                 return {
                     txId: txo.txId,
                     outputIndex: txo.index,
@@ -229,9 +226,9 @@ export class RpcWalletClient implements IWallet {
                 } as Transaction.UnspentOutput
             })
         ]);
-    
+
         // add slp genesis op_return
-        let slpMsg = mdm.TokenType1.genesis("TEST", "This is a test", "", "", 0, 2, new mdm.BN(1));
+        const slpMsg = mdm.TokenType1.genesis("TEST", "This is a test", "", "", 0, 2, new mdm.BN(1));
         txn.addOutput(new Transaction.Output({satoshis: 0, script: slpMsg }));
 
         // add dust outputs for token receiver and minting baton
@@ -244,7 +241,7 @@ export class RpcWalletClient implements IWallet {
         // sign the transaction
         txn.sign(new PrivateKey(this.wif));
         console.log(`txid: ${txn.id}`);
-        let txnHex = txn.serialize();
+        const txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
 
         // broadcast
@@ -252,25 +249,25 @@ export class RpcWalletClient implements IWallet {
     }
 
     async slpMint(tokenIdHex: string, to: { address: Address, amount: BigNumber }, batonVout: number, type=0x01): Promise<string> {
-        let txos = await this.getUtxosFromAddress(this.address, tokenIdHex);
-        let baton = txos.baton.find(i => i.slpToken && i.slpToken.hasBaton);
+        const txos = await this.getUtxosFromAddress(this.address, tokenIdHex);
+        const baton = txos.baton.find(i => i.slpToken && i.slpToken.hasBaton);
 
         if (!baton) {
             throw Error("no baton found");
         }
 
-        let txn = new Transaction();
+        const txn = new Transaction();
 
         txn.from([
             {
                 txId: baton.txId,
                 outputIndex: baton.index,
                 satoshis: baton.amount*10**8,
-                //@ts-ignore
+                // @ts-ignore
                 script: getScriptPubKey(baton.address),
             },
             ...txos.bch.map<Transaction.UnspentOutput>((txo, i, _) => {
-                //@ts-ignore
+                // @ts-ignore
                 return {
                     txId: txo.txId,
                     outputIndex: txo.index,
@@ -279,9 +276,9 @@ export class RpcWalletClient implements IWallet {
                 } as Transaction.UnspentOutput
             })
         ]);
-    
+
         // add slp mint op_return
-        let slpMsg = mdm.TokenType1.mint(tokenIdHex, batonVout, to.amount);
+        const slpMsg = mdm.TokenType1.mint(tokenIdHex, batonVout, to.amount);
         txn.addOutput(new Transaction.Output({satoshis: 0, script: slpMsg }));
 
         // add dust outputs for token receiver and minting baton
@@ -294,7 +291,7 @@ export class RpcWalletClient implements IWallet {
         // sign the transaction
         txn.sign(new PrivateKey(this.wif));
         console.log(`txid: ${txn.id}`);
-        let txnHex = txn.serialize();
+        const txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
 
         // broadcast
@@ -302,23 +299,23 @@ export class RpcWalletClient implements IWallet {
     }
 
     async slpSend(tokenIdHex: string, to: { address: Address, tokenAmount: BigNumber }[]): Promise<string> {
-        let txos = await this.getUtxosFromAddress(this.address, tokenIdHex);
+        const txos = await this.getUtxosFromAddress(this.address, tokenIdHex);
 
-        let txn = new Transaction();
+        const txn = new Transaction();
 
         txn.from([
             ...txos.slp.map<Transaction.UnspentOutput>((txo, i, _) => {
-                //@ts-ignore
+                // @ts-ignore
                 return {
                     txId: txo.txId,
                     outputIndex: txo.index,
                     satoshis: txo.amount*10**8,
                     script: getScriptPubKey(txo.address),
-                } as Transaction.UnspentOutput 
+                } as Transaction.UnspentOutput
             }),
-            //@ts-ignore
+            // @ts-ignore
             ...txos.bch.map<Transaction.UnspentOutput>((txo, i, _) => {
-                //@ts-ignore
+                // @ts-ignore
                 return {
                     txId: txo.txId,
                     outputIndex: txo.index,
@@ -329,7 +326,7 @@ export class RpcWalletClient implements IWallet {
         ]);
 
         // add slp mint op_return
-        let slpMsg = mdm.TokenType1.send(tokenIdHex, to.map((v, i, _) => v.tokenAmount));
+        const slpMsg = mdm.TokenType1.send(tokenIdHex, to.map((v, i, _) => v.tokenAmount));
         txn.addOutput(new Transaction.Output({satoshis: 0, script: slpMsg }));
 
         // add slp change back to our wallet
@@ -348,7 +345,7 @@ export class RpcWalletClient implements IWallet {
         // sign the transaction
         txn.sign(new PrivateKey(this.wif));
         console.log(`txid: ${txn.id}`);
-        let txnHex = txn.serialize();
+        const txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
 
         // broadcast
@@ -357,7 +354,7 @@ export class RpcWalletClient implements IWallet {
 }
 
 const getScriptPubKey = (address: Address): Buffer => {
-    let decoded = bchaddrjs.decodeAddress(address.cashAddress);
+    const decoded = bchaddrjs.decodeAddress(address.cashAddress);
     if (bchaddrjs.Type.P2PKH) {
         decoded.hash.unshift(...[118,169,20]); // TODO: get these opcode from some typed npm package
         decoded.hash.push(...[136,172]);       // TODO: get these opcode from some typed npm package
@@ -374,7 +371,7 @@ export interface IWallet {
     _rpcClient: BitcoinRpcClient;
     _slpValidator: ValidatorType1;
     _listUnspent: (address: string) => Promise<RpcListUnspentRes[]>;
-    _getSlpToken: (txid: string, vout: number) => Promise<SlpToken|undefined>;
+    _getSlpToken: (tid: string, vout: number) => Promise<SlpToken|undefined>;
     _getUnspentTxos: (addres: Address) => Promise<Utxo[]>
 }
 
@@ -385,7 +382,7 @@ export interface BitcoinRpcClient {
     getNewAddress: (label?: string) => Promise<string>;
     dumpPrivKey: (address: string) => Promise<string>;
     listUnspent: (minconf?: number, maxconf?: number, addresses?: string[], include_safe?: boolean, query_options?: ListUnspentQueryOptions) => Promise<RpcListUnspentRes[]>;
-    getRawTransaction: (txid: string, verbose?: boolean, blockhash?: string) => Promise<string|object>;
+    getRawTransaction: (tid: string, verbose?: boolean, blockhash?: string) => Promise<string|any>;
     sendRawTransaction: (txnHex: string, allowHighFees?: boolean ) => Promise<string>;
     generateToAddress: (nblocks: number, address: string, maxtries?: number) => Promise<string[]>;
 }

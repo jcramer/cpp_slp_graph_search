@@ -12,9 +12,10 @@ services:
       test: ["CMD", "/entrypoint.sh", "bitcoin-cli", "getblockchaininfo"]
     expose:
       - "18333" # regnet
-      - "28332" # zmq publish tx/block
+      #- "28332" # zmq publish tx/block
     ports:
       - "18443:18443"
+      - "28332:28332" # zmq publish tx/block
     volumes:
       - ./bitcoin.conf:/data/bitcoin.conf
 
@@ -45,7 +46,7 @@ services:
       test: ["CMD", "/entrypoint.sh", "bitcoin-cli", "getblockchaininfo"]  # TODO: need to wait for wallet to finish loading.
     expose:
       - "18333" # regnet
-      - "28332" # zmq publish tx/block
+      #- "28332" # zmq publish tx/block
     ports:
       - "18444:18443"
     depends_on: 

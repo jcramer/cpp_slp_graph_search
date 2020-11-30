@@ -25,7 +25,7 @@ checkpoint_load = false
 checkpoint_save = false
 
 [zmqpub]
-bind = "tcp://127.0.0.1:29069"
+bind = "tcp://0.0.0.0:29069"
 
 [graphsearch]
 max_exclusion_set_size = 5
