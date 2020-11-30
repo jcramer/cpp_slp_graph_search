@@ -36,7 +36,6 @@ sock.subscribe('rawtx');
 sock.subscribe('rawblock');
 console.log("Subscriber connected to gs++");
 
-// eslint-disable-next-line @typescript-eslint/require-await
 sock.on('message', (topic: string, message: Buffer) => {
     if (topic.toString() === 'rawtx') {
         gsZmqTxns.add(Crypto.HashTxid(message).toString("hex"));
@@ -44,8 +43,6 @@ sock.on('message', (topic: string, message: Buffer) => {
         // nothing yet...
     }
 });
-
-// TODO?: setup async randomized block generation for the two full nodes using setTimeout.
 
 let slpTxnCount = 0;
 const WAIT_FOR_GS_ZMQ = async () => {
@@ -151,7 +148,7 @@ describe("basic wallet setup", () => {
         if (! dagCount) {
             dagCount = gs2.getTxdataList_asU8().length;
         } else {
-            assert.strictEqual(dagCount, gs2.getTxdataList_asU8().length);
+            assert.strictEqual(++dagCount, gs2.getTxdataList_asU8().length);
         }
 
         return dagCount;

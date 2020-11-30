@@ -213,7 +213,7 @@ export class RpcWalletClient implements IWallet {
 
         const txos = await this.getUtxosFromAddress(this.address);
 
-        const txn = new Transaction();
+        let txn = new Transaction();
 
         txn.from([
             ...txos.bch.map<Transaction.UnspentOutput>((txo, i, _) => {
@@ -221,7 +221,7 @@ export class RpcWalletClient implements IWallet {
                 return {
                     txId: txo.txId,
                     outputIndex: txo.index,
-                    satoshis: txo.amount*10**8,
+                    satoshis: Math.round(txo.amount*10**8),
                     script: getScriptPubKey(txo.address),
                 } as Transaction.UnspentOutput
             })
@@ -239,7 +239,7 @@ export class RpcWalletClient implements IWallet {
         txn.change(this.address.cashAddress);
 
         // sign the transaction
-        txn.sign(new PrivateKey(this.wif));
+        txn = this.sign(txn);
         console.log(`txid: ${txn.id}`);
         const txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
@@ -248,7 +248,7 @@ export class RpcWalletClient implements IWallet {
         return this.submitTransaction(txnHex);
     }
 
-    async slpMint(tokenIdHex: string, to: { address: Address, amount: BigNumber }, batonVout: number, type=0x01): Promise<string> {
+    async buildSlpMint(tokenIdHex: string, to: { address: Address, amount: BigNumber }, batonVout: number, type=0x01): Promise<string> {
         const txos = await this.getUtxosFromAddress(this.address, tokenIdHex);
         const baton = txos.baton.find(i => i.slpToken && i.slpToken.hasBaton);
 
@@ -256,22 +256,22 @@ export class RpcWalletClient implements IWallet {
             throw Error("no baton found");
         }
 
-        const txn = new Transaction();
+        let txn = new Transaction();
 
         txn.from([
+            // @ts-ignore
             {
                 txId: baton.txId,
                 outputIndex: baton.index,
-                satoshis: baton.amount*10**8,
-                // @ts-ignore
+                satoshis: Math.round(baton.amount*10**8),
                 script: getScriptPubKey(baton.address),
-            },
+            } as Transaction.UnspentOutput,
             ...txos.bch.map<Transaction.UnspentOutput>((txo, i, _) => {
                 // @ts-ignore
                 return {
                     txId: txo.txId,
                     outputIndex: txo.index,
-                    satoshis: txo.amount*10**8,
+                    satoshis: Math.round(txo.amount*10**8),
                     script: getScriptPubKey(txo.address),
                 } as Transaction.UnspentOutput
             })
@@ -289,19 +289,23 @@ export class RpcWalletClient implements IWallet {
         txn.change(this.address.cashAddress);
 
         // sign the transaction
-        txn.sign(new PrivateKey(this.wif));
+        txn = this.sign(txn);
         console.log(`txid: ${txn.id}`);
         const txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
 
-        // broadcast
-        return this.submitTransaction(txnHex);
+        // returns txn hex
+        return txnHex;
     }
 
-    async slpSend(tokenIdHex: string, to: { address: Address, tokenAmount: BigNumber }[]): Promise<string> {
+    async slpMint(tokenIdHex: string, to: { address: Address, amount: BigNumber }, batonVout: number, type=0x01): Promise<string> {
+        return this.submitTransaction(await this.buildSlpMint(tokenIdHex, to, batonVout, type));
+    }
+
+    async buildSlpSend(tokenIdHex: string, to: { address: Address, tokenAmount: BigNumber }[]): Promise<string> {
         const txos = await this.getUtxosFromAddress(this.address, tokenIdHex);
 
-        const txn = new Transaction();
+        let txn = new Transaction();
 
         txn.from([
             ...txos.slp.map<Transaction.UnspentOutput>((txo, i, _) => {
@@ -309,7 +313,7 @@ export class RpcWalletClient implements IWallet {
                 return {
                     txId: txo.txId,
                     outputIndex: txo.index,
-                    satoshis: txo.amount*10**8,
+                    satoshis: Math.round(txo.amount*10**8),
                     script: getScriptPubKey(txo.address),
                 } as Transaction.UnspentOutput
             }),
@@ -319,7 +323,7 @@ export class RpcWalletClient implements IWallet {
                 return {
                     txId: txo.txId,
                     outputIndex: txo.index,
-                    satoshis: txo.amount*10**8,
+                    satoshis: Math.round(txo.amount*10**8),
                     script: getScriptPubKey(txo.address),
                 } as Transaction.UnspentOutput
             })
@@ -343,13 +347,25 @@ export class RpcWalletClient implements IWallet {
         txn.change(this.address.cashAddress);
 
         // sign the transaction
-        txn.sign(new PrivateKey(this.wif));
+        txn = this.sign(txn);
         console.log(`txid: ${txn.id}`);
         const txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
 
-        // broadcast
-        return this.submitTransaction(txnHex);
+        // returns txn hex
+        return txnHex;
+    }
+
+    async slpSend(tokenIdHex: string, to: { address: Address, tokenAmount: BigNumber }[]): Promise<string> {
+        return this.submitTransaction(await this.buildSlpSend(tokenIdHex, to));
+    }
+
+    sign(txn: string|Transaction): Transaction {
+        if (typeof txn === 'string') {
+            txn = new Transaction(txn);
+        }
+        txn.sign(new PrivateKey(this.wif));
+        return txn;
     }
 }
 
