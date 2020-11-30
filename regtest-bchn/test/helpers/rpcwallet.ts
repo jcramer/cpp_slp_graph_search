@@ -66,7 +66,7 @@ export class RpcWalletClient implements IWallet {
                 this._utxos.push({
                     txId: txn.id,
                     index: i,
-                    amount: txo.satoshis / 10**8,
+                    amount: Math.round(txo.satoshis) / 10**8,
                     script: txo.script,
                     slpToken: await this._getSlpToken(txn.id, i),
                     address: { cashAddress: address, slpAddress: bchaddrjs.toSlpAddress(address) }
@@ -82,7 +82,7 @@ export class RpcWalletClient implements IWallet {
         let unspent: RpcListUnspentRes[] = await this._rpcClient.listUnspent(0);
         this._unspentCache = unspent;
 
-        unspent = unspent.sort((a, b) => b.amount - a.amount).filter(a => a.amount <= 50);
+        unspent = unspent.sort((a, b) => b.amount - a.amount); // .filter(a => a.amount <= 50);
 
         // mine some coins if necessary
         if (unspent.length < 1) {
@@ -95,6 +95,7 @@ export class RpcWalletClient implements IWallet {
         }
 
         this.address = { cashAddress: unspent[0].address, slpAddress: bchaddrjs.toSlpAddress(unspent[0].address) };
+        this._addresses.add(this.address.cashAddress);
         this.wif = await this._rpcClient.dumpPrivKey(this.address.cashAddress);
     }
 
@@ -124,7 +125,7 @@ export class RpcWalletClient implements IWallet {
             }
             this._utxos = txos;
         } else {
-            txos = this._utxos
+            txos = this._utxos;
         }
         console.timeEnd("getUnspent");
         return txos;
