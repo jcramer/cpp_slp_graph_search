@@ -32,3 +32,6 @@ Attach shell:
 `$ docker exec -it regtest-bchn_graphsearch_1 bash`
 `$ docker exec -it regtest-bchn_bitcoind1_1 bash`
 `$ docker exec -it regtest-bchn_bitcoind2_1 bash`
+
+Using bitcoin-cli (after attaching to a container via bash):
+`$ bitcoin-cli --rpcport=18443 --rpcuser=bitcoin --rpcpassword=password <cmd> <...args>`

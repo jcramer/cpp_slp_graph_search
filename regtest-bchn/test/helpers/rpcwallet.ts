@@ -20,7 +20,7 @@ export class RpcWalletClient implements IWallet {
     _unspentCache: RpcListUnspentRes[] = [];
 
     address!: Address;
-    _miningAddress = bchaddrjs.toRegtestAddress(new PrivateKey().toAddress().toString());
+    _untrackedMiningAddress = bchaddrjs.toRegtestAddress(new PrivateKey().toAddress().toString());
     wif!: string;
 
     _addresses = new Set<string>();
@@ -89,7 +89,7 @@ export class RpcWalletClient implements IWallet {
             const address = await this.getNewAddress();
             await this._rpcClient.generateToAddress(1, address);
             while (unspent.length === 0) {
-                await this._rpcClient.generateToAddress(1, this._miningAddress);
+                await this._rpcClient.generateToAddress(1, this._untrackedMiningAddress);
                 unspent = await this._rpcClient.listUnspent(0);
             }
         }
@@ -138,7 +138,7 @@ export class RpcWalletClient implements IWallet {
             let bchAmt = txos.filter(txo => !txo.slpToken).reduce((p, c, _) => p + c.amount , 0);
             if (bchAmt < 0.1) {
                 await this._rpcClient.generateToAddress(1, this.address.cashAddress);
-                await this._rpcClient.generateToAddress(100, this._miningAddress);
+                await this._rpcClient.generateToAddress(100, this._untrackedMiningAddress);
                 txos = await this._getUnspentTxos(address, false);
             }
 
@@ -249,7 +249,7 @@ export class RpcWalletClient implements IWallet {
         return this.submitTransaction(txnHex);
     }
 
-    async buildSlpMint(tokenIdHex: string, to: { address: Address, amount: BigNumber }, batonVout: number, type=0x01): Promise<string> {
+    async buildSlpMint(tokenIdHex: string, to: { address: Address, tokenAmount: BigNumber }, batonVout: number, type=0x01): Promise<Transaction> {
         const txos = await this.getUtxosFromAddress(this.address, tokenIdHex);
         const baton = txos.baton.find(i => i.slpToken && i.slpToken.hasBaton);
 
@@ -279,7 +279,7 @@ export class RpcWalletClient implements IWallet {
         ]);
 
         // add slp mint op_return
-        const slpMsg = mdm.TokenType1.mint(tokenIdHex, batonVout, to.amount);
+        const slpMsg = mdm.TokenType1.mint(tokenIdHex, batonVout, to.tokenAmount);
         txn.addOutput(new Transaction.Output({satoshis: 0, script: slpMsg }));
 
         // add dust outputs for token receiver and minting baton
@@ -292,18 +292,17 @@ export class RpcWalletClient implements IWallet {
         // sign the transaction
         txn = this.sign(txn);
         console.log(`txid: ${txn.id}`);
-        const txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
 
         // returns txn hex
-        return txnHex;
+        return txn;
     }
 
-    async slpMint(tokenIdHex: string, to: { address: Address, amount: BigNumber }, batonVout: number, type=0x01): Promise<string> {
-        return this.submitTransaction(await this.buildSlpMint(tokenIdHex, to, batonVout, type));
+    async slpMint(tokenIdHex: string, to: { address: Address, tokenAmount: BigNumber }, batonVout: number, type=0x01): Promise<string> {
+        return this.submitTransaction((await this.buildSlpMint(tokenIdHex, to, batonVout, type)).serialize());
     }
 
-    async buildSlpSend(tokenIdHex: string, to: { address: Address, tokenAmount: BigNumber }[]): Promise<string> {
+    async buildSlpSend(tokenIdHex: string, to: { address: Address, tokenAmount: BigNumber }[]): Promise<Transaction> {
         const txos = await this.getUtxosFromAddress(this.address, tokenIdHex);
 
         let txn = new Transaction();
@@ -350,15 +349,14 @@ export class RpcWalletClient implements IWallet {
         // sign the transaction
         txn = this.sign(txn);
         console.log(`txid: ${txn.id}`);
-        const txnHex = txn.serialize();
         txnCache.set(txn.id, Buffer.from(txn.serialize(), "hex"));
 
         // returns txn hex
-        return txnHex;
+        return txn;
     }
 
     async slpSend(tokenIdHex: string, to: { address: Address, tokenAmount: BigNumber }[]): Promise<string> {
-        return this.submitTransaction(await this.buildSlpSend(tokenIdHex, to));
+        return this.submitTransaction((await this.buildSlpSend(tokenIdHex, to)).serialize());
     }
 
     sign(txn: string|Transaction): Transaction {
@@ -370,7 +368,7 @@ export class RpcWalletClient implements IWallet {
     }
 }
 
-const getScriptPubKey = (address: Address): Buffer => {
+export const getScriptPubKey = (address: Address): Buffer => {
     const decoded = bchaddrjs.decodeAddress(address.cashAddress);
     if (bchaddrjs.Type.P2PKH) {
         decoded.hash.unshift(...[118,169,20]); // TODO: get these opcode from some typed npm package
@@ -404,7 +402,7 @@ export interface BitcoinRpcClient {
     generateToAddress: (nblocks: number, address: string, maxtries?: number) => Promise<string[]>;
 }
 
-interface RpcBlockchainInfoRes {
+export interface RpcBlockchainInfoRes {
     chain: string;                  // "chain": "xxxx",              (string) current network name as defined in BIP70 (main, test, regtest)
     blocks: number;                 // "blocks": xxxxxx,             (numeric) the current number of blocks processed in the server
     headers: number;                // "headers": xxxxxx,            (numeric) the current number of headers we have validated
@@ -422,7 +420,11 @@ interface RpcBlockchainInfoRes {
     warnings: string;               // "warnings" : "...",           (string) any network and blockchain warnings.
 }
 
-interface RpcPeerInfoRes {
+export interface RpcPeerInfoRes {
+    id: number;
+    addr: string;
+    addnode: boolean;
+
     // TODO: type this inteface
     //     "id": n,                   (numeric) Peer index
     //     "addr":"host:port",      (string) The IP address and port of the peer
@@ -463,14 +465,14 @@ interface RpcPeerInfoRes {
     //     }
 }
 
-interface ListUnspentQueryOptions {
+export interface ListUnspentQueryOptions {
     minimumAmount?: number|string;   // "minimumAmount"    (numeric or string, default=0) Minimum value of each UTXO in BCH
     maximumAmount?: number|string;   // "maximumAmount"    (numeric or string, default=unlimited) Maximum value of each UTXO in BCH
     maximumCount?: number|string;    // "maximumCount"     (numeric or string, default=unlimited) Maximum number of UTXOs
     minimumSumAmount: number|string; // "minimumSumAmount" (numeric or string, default=unlimited) Minimum sum value of all UTXOs in BCH
 }
 
-interface RpcListUnspentRes {
+export interface RpcListUnspentRes {
     txid: string;           // "txid" : "txid",          (string) the transaction id
     vout: number;           // "vout" : n,               (numeric) the vout value
     address: string;        // "address" : "address",    (string) the bitcoin address
